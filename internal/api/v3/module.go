@@ -4,7 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
 
+	"github.com/dadav/gorge/internal/backend"
+	"github.com/dadav/gorge/internal/log"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -62,42 +68,135 @@ func (s *ModuleOperationsApi) DeprecateModule(ctx context.Context, moduleSlug st
 	return gen.Response(http.StatusNotImplemented, nil), errors.New("DeprecateModule method not implemented")
 }
 
+type GetModule404Response struct {
+	Message string   `json:"message,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
+type GetModule500Response struct {
+	Message string   `json:"message,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
 // GetModule - Fetch module
 func (s *ModuleOperationsApi) GetModule(ctx context.Context, moduleSlug string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string) (gen.ImplResponse, error) {
-	// TODO - update GetModule with the required logic for this service method.
-	// Add api_module_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	module, err := backend.ConfiguredBackend.GetModuleBySlug(moduleSlug)
+	if err != nil {
+		log.Log.Error(err)
+		return gen.Response(
+			http.StatusNotFound,
+			GetModule404Response{
+				Message: http.StatusText(http.StatusNotFound),
+				Errors:  []string{"Module could not be found"},
+			}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, Module{}) or use other options such as http.Ok ...
-	// return Response(200, Module{}), nil
-
-	// TODO: Uncomment the next line to return response Response(304, {}) or use other options such as http.Ok ...
-	// return Response(304, nil),nil
-
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetModule method not implemented")
+	return gen.Response(http.StatusOK, module), nil
 }
 
 // GetModules - List modules
 func (s *ModuleOperationsApi) GetModules(ctx context.Context, limit int32, offset int32, sortBy string, query string, tag string, owner string, withTasks bool, withPlans bool, withPdk bool, premium bool, excludePremium bool, endorsements []string, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, withMinimumScore int32, moduleGroups []string, showDeleted bool, hideDeprecated bool, onlyLatest bool, slugs []string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, startsWith string, supported bool, withReleaseSince string) (gen.ImplResponse, error) {
-	// TODO - update GetModules with the required logic for this service method.
-	// Add api_module_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	results := []gen.Module{}
+	filtered := []gen.Module{}
+	allModules := backend.ConfiguredBackend.GetAllModules()
+	params := url.Values{}
+	params.Add("offset", strconv.Itoa(int(offset)))
+	params.Add("limit", strconv.Itoa(int(limit)))
 
-	// TODO: Uncomment the next line to return response Response(200, GetModules200Response{}) or use other options such as http.Ok ...
-	// return Response(200, GetModules200Response{}), nil
+	if int(offset)+1 > len(allModules) {
+		return gen.Response(404, GetModule404Response{
+			Message: "Invalid offset",
+			Errors:  []string{"The given offset is larger than the total number of (filtered) modules."},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(304, {}) or use other options such as http.Ok ...
-	// return Response(304, nil),nil
+	for _, m := range allModules[offset:] {
+		var filterMatched, filterSet bool
+		if query != "" {
+			filterSet = true
+			filterMatched = strings.Contains(m.Slug, query) || strings.Contains(m.Owner.Slug, query)
+			params.Add("query", query)
+		}
 
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
+		if tag != "" {
+			filterSet = true
+			filterMatched = slices.Contains(m.CurrentRelease.Tags, tag)
+			params.Add("tag", tag)
+		}
 
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
+		if owner != "" {
+			filterSet = true
+			filterMatched = m.Owner.Username == owner
+			params.Add("owner", owner)
+		}
 
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetModules method not implemented")
+		if withTasks {
+			filterSet = true
+			filterMatched = len(m.CurrentRelease.Tasks) > 0
+			params.Add("with_tasks", strconv.FormatBool(withTasks))
+		}
+
+		if withPlans {
+			filterSet = true
+			filterMatched = len(m.CurrentRelease.Plans) > 0
+			params.Add("with_plans", strconv.FormatBool(withPlans))
+		}
+
+		if withPdk {
+			filterSet = true
+			filterMatched = m.CurrentRelease.Pdk
+			params.Add("with_pdk", strconv.FormatBool(withPdk))
+		}
+
+		if premium {
+			filterSet = true
+			filterMatched = m.Premium
+			params.Add("premium", strconv.FormatBool(premium))
+		}
+
+		if excludePremium {
+			filterSet = true
+			filterMatched = !m.Premium
+			params.Add("exclude_premium", strconv.FormatBool(excludePremium))
+		}
+
+		if len(endorsements) > 0 {
+			filterSet = true
+			filterMatched = m.Endorsement != nil && slices.Contains(endorsements, *m.Endorsement)
+			params.Add("endorsements", "["+strings.Join(endorsements, ",")+"]")
+		}
+
+		if !filterSet || filterMatched {
+			filtered = append(filtered, *m)
+		}
+	}
+
+	i := 1
+	for _, module := range filtered {
+		if i > int(limit) {
+			break
+		}
+		results = append(results, module)
+		i++
+	}
+
+	base, _ := url.Parse("/v3/modules")
+	base.RawQuery = params.Encode()
+	currentInf := interface{}(base.String())
+	params.Set("offset", "0")
+	firstInf := interface{}(base.String())
+	params.Set("offset", strconv.Itoa(int(offset)+len(results)))
+	nextInf := interface{}(base.String())
+
+	return gen.Response(http.StatusOK, gen.GetModules200Response{
+		Pagination: gen.GetModules200ResponsePagination{
+			Limit:   limit,
+			Offset:  offset,
+			First:   &firstInf,
+			Current: &currentInf,
+			Next:    &nextInf,
+			Total:   int32(len(allModules)),
+		},
+		Results: results,
+	}), nil
 }

@@ -4,7 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/dadav/gorge/internal/backend"
+	"github.com/dadav/gorge/internal/config"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -14,6 +21,12 @@ type ReleaseOperationsApi struct {
 
 func NewReleaseOperationsApi() *ReleaseOperationsApi {
 	return &ReleaseOperationsApi{}
+}
+
+type GetRelease404Response struct {
+	Message string `json:"message,omitempty"`
+
+	Errors []string `json:"errors,omitempty"`
 }
 
 // AddRelease - Create module release
@@ -62,41 +75,51 @@ func (s *ReleaseOperationsApi) DeleteRelease(ctx context.Context, releaseSlug st
 	return gen.Response(http.StatusNotImplemented, nil), errors.New("DeleteRelease method not implemented")
 }
 
+func ReleaseToModule(releaseSlug string) string {
+	return releaseSlug[:strings.LastIndex(releaseSlug, "-")]
+}
+
 // GetFile - Download module release
 func (s *ReleaseOperationsApi) GetFile(ctx context.Context, filename string) (gen.ImplResponse, error) {
-	// TODO - update GetFile with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	f, err := os.Open(filepath.Join(config.ModulesDir, ReleaseToModule(filename), filename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
+				Message: http.StatusText(http.StatusNotFound),
+				Errors:  []string{"The file does not exist."},
+			}), nil
+		}
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, *os.File{}) or use other options such as http.Ok ...
-	// return Response(200, *os.File{}), nil
+	return gen.Response(http.StatusOK, f), nil
+}
 
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetFile method not implemented")
+type GetRelease500Response struct {
+	Message string   `json:"message,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
 }
 
 // GetRelease - Fetch module release
 func (s *ReleaseOperationsApi) GetRelease(ctx context.Context, releaseSlug string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string) (gen.ImplResponse, error) {
-	// TODO - update GetRelease with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	metadata, readme, err := backend.ReadReleaseMetadata(releaseSlug)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
+				Message: http.StatusText(http.StatusNotFound),
+				Errors:  []string{"release not found"},
+			}), nil
+		}
+		return gen.Response(http.StatusInternalServerError, GetRelease500Response{
+			Message: http.StatusText(http.StatusInternalServerError),
+			Errors:  []string{"error while reading release metadata"},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, Release{}) or use other options such as http.Ok ...
-	// return Response(200, Release{}), nil
-
-	// TODO: Uncomment the next line to return response Response(304, {}) or use other options such as http.Ok ...
-	// return Response(304, nil),nil
-
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetRelease method not implemented")
+	return gen.Response(http.StatusOK, gen.Release{
+		Slug:   releaseSlug,
+		Module: gen.ReleaseModule{Name: metadata.Name},
+		Readme: readme,
+	}), nil
 }
 
 // GetReleasePlan - Fetch module release plan
@@ -129,14 +152,78 @@ func (s *ReleaseOperationsApi) GetReleasePlans(ctx context.Context, releaseSlug 
 
 // GetReleases - List module releases
 func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, offset int32, sortBy string, module string, owner string, withPdk bool, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, moduleGroups []string, showDeleted bool, hideDeprecated bool, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, supported bool) (gen.ImplResponse, error) {
-	// TODO - update GetReleases with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	results := []gen.Release{}
+	filtered := []gen.Release{}
+	allReleases := backend.ConfiguredBackend.GetAllReleases()
+	params := url.Values{}
+	params.Add("offset", strconv.Itoa(int(offset)))
+	params.Add("limit", strconv.Itoa(int(limit)))
 
-	// TODO: Uncomment the next line to return response Response(200, GetReleases200Response{}) or use other options such as http.Ok ...
-	// return Response(200, GetReleases200Response{}), nil
+	if int(offset)+1 > len(allReleases) {
+		return gen.Response(404, GetRelease404Response{
+			Message: "Invalid offset",
+			Errors:  []string{"The given offset is larger than the total number of modules."},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(304, {}) or use other options such as http.Ok ...
-	// return Response(304, nil),nil
+	for _, r := range allReleases[offset:] {
+		var filterMatched, filterSet bool
 
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetReleases method not implemented")
+		if module != "" && r.Module.Slug != module {
+			filterSet = true
+			filterMatched = r.Module.Slug == module
+			params.Add("module", module)
+		}
+		if owner != "" && r.Module.Owner.Slug != owner {
+			filterSet = true
+			filterMatched = r.Module.Owner.Slug == owner
+			params.Add("owner", owner)
+		}
+
+		if !filterSet || filterMatched {
+			filtered = append(filtered, *r)
+		}
+	}
+
+	i := 1
+	for _, release := range filtered {
+		if i > int(limit) {
+			break
+		}
+		results = append(results, release)
+		i++
+	}
+
+	base, _ := url.Parse("/v3/releases")
+	base.RawQuery = params.Encode()
+	currentInf := interface{}(base.String())
+	params.Set("offset", "0")
+	firstInf := interface{}(base.String())
+
+	var nextInf interface{}
+	nextOffset := int(offset) + len(results)
+	if nextOffset < len(filtered) {
+		params.Set("offset", strconv.Itoa(nextOffset))
+		nextInf = interface{}(base.String())
+	}
+
+	var prevInf *string
+	prevOffset := int(offset) - int(limit)
+	if prevOffset >= 0 {
+		prevStr := base.String()
+		prevInf = &prevStr
+	}
+
+	return gen.Response(http.StatusOK, gen.GetReleases200Response{
+		Pagination: gen.GetReleases200ResponsePagination{
+			Limit:    limit,
+			Offset:   offset,
+			First:    &firstInf,
+			Previous: prevInf,
+			Current:  &currentInf,
+			Next:     &nextInf,
+			Total:    int32(len(filtered)),
+		},
+		Results: results,
+	}), nil
 }

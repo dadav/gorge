@@ -13,10 +13,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package cmd
 
-import "github.com/dadav/gorge/cmd"
+import (
+	"fmt"
+	"os"
 
-func main() {
-	cmd.Execute()
+	"github.com/spf13/cobra"
+)
+
+var version string = "0.1.0-alpha"
+
+// versionCmd represents the version command
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the current version, then exit.",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(version)
+		os.Exit(0)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
 }
