@@ -1,0 +1,2390 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "Puppet Forge v3 API",
+    "version": "29",
+    "description": "## Introduction\nThe Puppet Forge API (hereafter referred to as the Forge API) provides quick access to all the\ndata on the Puppet Forge via a RESTful interface. Using the Forge API, you can write scripts and\ntools that interact with the Puppet Forge website.\n\nThe Forge API's current version is `v3`. It is considered regression-stable, meaning that the returned\ndata is guaranteed to include the fields described in the schemas on this page; however, additional data\nmight be added in the future and clients must ignore any properties they do not recognize.\n\n## OpenAPI Specification\nThe Puppet Forge v3 API is described by an\n[OpenAPI 3.0](https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.0.md) formatted\nspecification file. The most up-to-date version of this specification file can be accessed at\n[https://forgeapi.puppet.com/v3/openapi.json](/v3/openapi.json).\n\n## Features\n* The API is accessed over HTTPS via either the `forgeapi.puppet.com` (IPv4 or IPv6). All data is returned in JSON\n  format.\n* Blank fields are included as `null`.\n* Nested resources may use an abbreviated representation. A link to the full representation for the\n  resource is always included.\n* All timestamps in JSON responses are returned in ISO 8601 format: `YYYY-MM-DD HH:MM:SS ±HHMM`.\n* The HTTP response headers include caching hints for conditional requests.\n\n## Concepts and Terminology\n* **Module**: Modules are self-contained bundles of code and data with a specific directory structure. Modules are identified by a combination of the author's username and the module's name, separated by a hyphen. For example: `puppetlabs-apache`\n* **Release**: A single, specific version of a module is called a Release. Releases are identified by a combination of the module identifier (see above) and the Release version, separated by a hyphen. For example: `puppetlabs-apache-4.0.0`\n\n## Errors\nThe Puppet Forge API follows [RFC 2616](https://tools.ietf.org/html/rfc2616) and\n[RFC 6585](https://tools.ietf.org/html/rfc6585).\n\nError responses are served with a `4xx` or `5xx` status code, and are sent as a JSON document with a content type\nof `application/json`. The error document contains the following top-level keys and values:\n\n  * `message`: a string value that summarizes the problem\n  * `errors`: a list (array) of strings containing additional details describing the underlying cause(s) of the\n    failure\n\nAn example error response is shown below:\n\n```json\n{\n  \"message\": \"400 Bad Request\",\n  \"errors\": [\n    \"Cannot parse request body as JSON\"\n  ]\n}\n```\n\n## User-Agent Required\nAll API requests must include a valid `User-Agent` header. Requests with no `User-Agent` header will\nbe rejected. The `User-Agent` header helps identify your application or library, so we can communicate\nwith you if necessary. If your use of the API is informal or personal, we recommend using your username\nas the value for the `User-Agent` header.\n\nUser-Agent headers are a list of one or more product descriptions, generally taking this form:\n\n```\n<name-without-spaces>/<version> (comments)\n```\n\nFor example, the following are all useful User-Agent values:\n\n```\nMyApplication/0.0.0 Her/0.6.8 Faraday/0.8.8 Ruby/1.9.3-p194 (i386-linux)\nMy-Library-Name/1.2.4\nmyusername\n```\n\n## Hostname Configuration\nMost tools that interact with the Forge API allow specification of the hostname to use. You can configure\na few common tools to use a specified hostname as follows:\n\nFor **Puppet Enterprise** users, in [r10k](https://puppet.com/docs/pe/latest/r10k_customize_config.html#r10k_configuring_forge_settings)\nor [Code Manager](https://puppet.com/docs/pe/latest/code_mgr_customizing.html#config_forge_settings), specify\n`forge_settings` in Hiera:\n```\npe_r10k::forge_settings:\n  baseurl: 'https://forgeapi.puppet.com'\n```\nor\n```\npuppet_enterprise::master::code_manager::forge_settings:\n  baseurl: 'https://forgeapi.puppet.com'\n```\n<br />\n\nIf you are an **open source Puppet** user using r10k, you'll need to [edit your r10k.yaml\ndirectly](https://github.com/puppetlabs/r10k/blob/main/doc/dynamic-environments/configuration.mkd#forge):\n```\nforge:\n  baseurl: 'https://forgeapi.puppet.com'\n```\nor set the appropriate class param for the [open source r10k module](https://forge.puppet.com/puppet/r10k#forge_settings):\n```\n$forge_settings = {\n  'baseurl' => 'https://forgeapi.puppet.com',\n}\n```\n<br />\n\nIn [**Bolt**](https://puppet.com/docs/bolt/latest/bolt_installing_modules.html#install-forge-modules-from-an-alternate-forge), set a `baseurl` for the Forge in `bolt-project.yaml`:\n```\nmodule-install:\n  forge:\n    baseurl: https://forgeapi.puppet.com\n```\n<br />\n\nUsing `puppet config`:\n```\n$ puppet config set module_repository https://forgeapi.puppet.com\n```\n"
+  },
+  "servers": [
+    {
+      "url": "https://forgeapi.puppet.com"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization: Bearer <api_key>",
+        "description": "Some of the Forge API endpoints require authentication in the form of a user API key. API keys may be created and revoked from a user's profile on the [Forge website](https://forge.puppet.com), where other profile details are managed.\n\nTo perform actions that require API key authentication, the key must be present in an `Authorization` header with the request. The header should be formatted as:\n\n```\nAuthorization: Bearer <api_key>\n```\n\nIf a request is made to a protected endpoint without the required `Authorization` header a `401 Unauthorized` response will be returned. If an `Authorization` header is sent with the request, but the provided key is invalid or has insufficent permissions a `403 Forbidden` response will be returned.\n"
+      }
+    },
+    "parameters": {
+      "ifModifiedSince": {
+        "in": "header",
+        "name": "If-Modified-Since",
+        "schema": {
+          "type": "string",
+          "format": "rfc2616 httpdate",
+          "description": "Only processes the request if the resource or list of resources has changed since the given time,\notherwise returns a `304 Not Modified` response\n",
+          "example": "Mon, 19 Feb 2019 10:15:08 GMT"
+        }
+      },
+      "limitQuery": {
+        "in": "query",
+        "name": "limit",
+        "description": "The numbers of items to return per page",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "offsetQuery": {
+        "in": "query",
+        "name": "offset",
+        "description": "The number of items to skip before starting to collect the result set",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "withHTML": {
+        "in": "query",
+        "name": "with_html",
+        "description": "Render markdown files (README, REFERENCE, etc.) to HTML before returning results",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "includeFields": {
+        "in": "query",
+        "name": "include_fields",
+        "description": "List of top level keys to include in response object, only applies to fields marked 'optional'",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "spaceDelimited",
+        "explode": false,
+        "example": [
+          "docs"
+        ]
+      },
+      "excludeFields": {
+        "in": "query",
+        "name": "exclude_fields",
+        "description": "List of top level keys to exclude from response object",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "spaceDelimited",
+        "explode": false,
+        "example": [
+          "readme",
+          "changelog",
+          "license",
+          "reference"
+        ]
+      }
+    },
+    "schemas": {
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "example": 20,
+            "description": "Maximum number of results per page"
+          },
+          "offset": {
+            "type": "integer",
+            "example": 0,
+            "description": "Current page's offset from the beginning of the result set"
+          },
+          "first": {
+            "type": "string",
+            "format": "URL path and query string",
+            "example": "/v3/<resource>?offset=0&limit=20",
+            "description": "Relative URL for the first page of the result set"
+          },
+          "previous": {
+            "type": "string",
+            "format": "URL path and query string",
+            "nullable": true,
+            "example": null,
+            "description": "Relative URL for the previous page of the result set, or `null` if this is the first page"
+          },
+          "current": {
+            "type": "string",
+            "format": "URL path and query string",
+            "example": "/v3/<resource>?offset=0&limit=20",
+            "description": "Relative URL for the current page of the result set"
+          },
+          "next": {
+            "type": "string",
+            "format": "URL path and query string",
+            "nullable": true,
+            "example": "/v3/<resource>?offset=20&limit=20",
+            "description": "Relative URL for the next page of the result set, or `null` if this is the last page"
+          },
+          "total": {
+            "type": "integer",
+            "example": 100,
+            "description": "Total number of all results"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this User resource",
+            "example": "/v3/users/puppetlabs"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+$",
+            "description": "Unique textual identifier for this User resource",
+            "example": "puppetlabs"
+          },
+          "gravatar_id": {
+            "type": "string",
+            "description": "Gravatar ID, learn more at [https://gravatar.com/]()",
+            "example": "fdd009b7c1ec96e088b389f773e87aec"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username for this User resource",
+            "example": "puppetlabs"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Free form display name for this User resource",
+            "example": "Puppet"
+          },
+          "release_count": {
+            "type": "integer",
+            "description": "Total number of module releases (versions) published under this User",
+            "example": 1619
+          },
+          "module_count": {
+            "type": "integer",
+            "description": "Total number of unique modules published under this User",
+            "example": 178
+          },
+          "created_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this User resource was created",
+            "example": "2010-05-19 05:46:26 -0700"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this User resource was last modified",
+            "example": "2018-09-18 11:46:25 -0700"
+          }
+        }
+      },
+      "UserAbbreviated": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this User resource",
+            "example": "/v3/users/puppetlabs"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+$",
+            "description": "Unique textual identifier for this User resource",
+            "example": "puppetlabs"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username for this User resource",
+            "example": "puppetlabs"
+          },
+          "gravatar_id": {
+            "type": "string",
+            "description": "Gravatar ID, learn more at [https://gravatar.com/]()",
+            "example": "fdd009b7c1ec96e088b389f773e87aec"
+          }
+        }
+      },
+      "SearchFilter": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The unique identifier for the search filter."
+          },
+          "filter": {
+            "type": "object",
+            "description": "The hash definining the search filter criteria."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Indicates whether the search filter is active.",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "description": "The timestamp indicating when the search filter was created."
+          }
+        },
+        "example": {
+          "id": 1,
+          "filter": {
+            "keyword": "apache",
+            "features": {
+                "premium": true,
+                "with_pdk": null,
+                "with_tasks": null
+            },
+            "endorsements": {
+                "partner": true,
+                "approved": null,
+                "supported": null
+            },
+            "compatibility": {
+                "pe_requirement": "2023.1",
+                "operating_system": "Windows",
+                "puppet_requirement": "8.0",
+                "operating_system_release": "2019"
+            },
+            "with_minimum_score": "80",
+            "release_within": "1year"
+          },
+          "active": true,
+          "created_at": "2023-11-28 17:51:53 +0530"
+        }
+      },
+      "SearchFilterResponse": {
+        "type": "object",
+        "properties": {
+          "user_search_filters": {
+            "type": "array",
+            "description": "The array of user search filter.",
+            "items": {
+              "$ref": "#/components/schemas/SearchFilter"
+            }
+          }
+        },
+        "example": {
+          "user_search_filters": [
+            { "id": 1,
+              "filter": {
+                "keyword": "apache",
+                "features": {
+                  "premium": true,
+                  "with_pdk": null,
+                  "with_tasks": null
+                },
+                "endorsements": {
+                  "partner": true,
+                  "approved": null,
+                  "supported": null
+                },
+                "compatibility": {
+                  "pe_requirement": "2023.1",
+                  "operating_system": "Windows",
+                  "puppet_requirement": "8.0",
+                  "operating_system_release": "2019"
+                },
+                "with_minimum_score": "80",
+                "release_within": "1year"
+              },
+              "active": true,
+              "created_at": "2023-11-28 17:51:53 +0530"
+            },
+            { "id": 2,
+              "filter": {
+                "keyword": "sql",
+                "features": {
+                  "premium": true,
+                  "with_pdk": null,
+                  "with_tasks": null
+                },
+                "endorsements": {
+                  "partner": true,
+                  "approved": null,
+                  "supported": null
+                },
+                "compatibility": {
+                  "pe_requirement": "2023.1",
+                  "operating_system": "Windows",
+                  "puppet_requirement": "8.0",
+                  "operating_system_release": "2019"
+                },
+                "with_minimum_score": "80",
+                "release_within": "1year"
+              },
+              "active": true,
+              "created_at": "2023-11-28 17:51:53 +0530"
+            }
+          ]
+        }
+      },
+      "Module": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Module resource",
+            "example": "/v3/modules/puppetlabs-apache"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*$",
+            "description": "Unique textual identifier for this Module resource",
+            "example": "puppetlabs-apache"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Base name of this module (without username/namespace)",
+            "example": "apache"
+          },
+          "downloads": {
+            "type": "integer",
+            "description": "Total download count for all released versions of this module",
+            "example": 6618694
+          },
+          "created_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this Module resource was created",
+            "example": "2010-05-19 05:46:26 -0700"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this Module resource was last modified",
+            "example": "2010-05-19 05:46:26 -0700"
+          },
+          "deprecated_at": {
+            "type": "string",
+            "format": "iso8601",
+            "nullable": true,
+            "description": "Date and time this Module resource was marked as deprecated by the owner",
+            "example": null
+          },
+          "deprecated_for": {
+            "type": "string",
+            "nullable": true,
+            "description": "Reason provided by the owner for marking this module as deprecated",
+            "example": null
+          },
+          "superseded_by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModuleMinimal"
+              },
+              {
+                "nullable": true,
+                "description": "Module resource suggested by the owner as a potential replacement for a deprecated module"
+              }
+            ],
+            "example": null
+          },
+          "supported": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "Whether or not this module is a [Supported module](https://forge.puppet.com/supported), see `endorsement` field instead",
+            "example": true
+          },
+          "endorsement": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "approved",
+              "partner"
+            ],
+            "nullable": true,
+            "description": "Indicates whether a module is endorsed through the Supported, Approved or Partner Supported programs, or `null` if not endorsed",
+            "example": "supported"
+          },
+          "module_group": {
+            "type": "string",
+            "enum": [
+              "base",
+              "pe_only"
+            ],
+            "description": "Indicates whether or not a module is licensed for use by Puppet Enterprise customers only, indicated by a value of `pe_only`, for all other modules this value will be `base`",
+            "example": "base"
+          },
+          "premium": {
+            "type": "boolean",
+            "description": "Whether this module is premium (requires payment to download)",
+            "example": false
+          },
+          "owner": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserAbbreviated"
+              },
+              {
+                "description": "Abbreviated representation of the User resource that owns/publishes this module"
+              }
+            ]
+          },
+          "current_release": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Release"
+              },
+              {
+                "description": "Full representation of the Release resource for the most \"recent\" version of this module"
+              }
+            ]
+          },
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseAbbreviated"
+            },
+            "description": "Array of abbreviated representations of all published Releases of this module"
+          },
+          "feedback_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Numeric score representing the average rating this module has received from Forge users",
+            "example": 84
+          },
+          "homepage_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Author-provided URL for this module's homepage",
+            "example": "https://github.com/puppetlabs/puppetlabs-apache"
+          },
+          "issues_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Author-provided URL for reporting issues about this module",
+            "example": "https://tickets.puppetlabs.com/browse/MODULES"
+          }
+        }
+      },
+      "ModuleAbbreviated": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Module resource",
+            "example": "/v3/modules/puppetlabs-apache"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*$",
+            "description": "Unique textual identifier for this Module resource",
+            "example": "puppetlabs-apache"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Base name of this module (without username/namespace)",
+            "example": "apache"
+          },
+          "deprecated_at": {
+            "type": "string",
+            "format": "iso8601",
+            "nullable": true,
+            "description": "Date and time this Module resource was marked as deprecated by the owner",
+            "example": null
+          },
+          "owner": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserAbbreviated"
+              },
+              {
+                "description": "Abbreviated representation of the User resource that owns/publishes this module"
+              }
+            ]
+          }
+        }
+      },
+      "ModuleMinimal": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Module resource",
+            "example": "/v3/modules/puppetlabs-apache"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*$",
+            "description": "Unique textual identifier for this Module resource",
+            "example": "puppetlabs-apache"
+          }
+        }
+      },
+      "Release": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Release resource",
+            "example": "/v3/releases/puppetlabs-apache-4.0.0"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$",
+            "description": "Unique textual identifier for this Release resource",
+            "example": "puppetlabs-apache-4.0.0"
+          },
+          "module": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModuleAbbreviated"
+              },
+              {
+                "description": "Abbreviated representation of the Module resource that this release is a version of"
+              }
+            ]
+          },
+          "version": {
+            "type": "string",
+            "format": "semantic version",
+            "example": "4.0.0"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Verbatim contents of release's `metadata.json` file"
+          },
+          "tags": {
+            "type": "array",
+            "description": "List of tags applied to this module release (derived from `metadata.json`)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supported": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "Indicates whether or not this specific module release is supported, this value is no longer relevant,\nplease see the `endorsement` property of the parent module instead\n",
+            "example": true
+          },
+          "pdk": {
+            "type": "boolean",
+            "description": "Indicates whether or not this module release's metadata contains\n[Puppet Development Kit](https://puppet.com/docs/pdk/latest/pdk.html) related keys/values\n",
+            "example": true
+          },
+          "validation_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Numeric value representing module release's \"Quality score\", see\n[module scoring](https://forge.puppet.com/about/scoring) to learn more\n",
+            "example": 100
+          },
+          "file_uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "Relative or absolute URL to download this release's tarball",
+            "example": "/v3/files/puppetlabs-apache-4.0.0.tar.gz"
+          },
+          "file_size": {
+            "type": "integer",
+            "format": "bytes",
+            "description": "Size of this release's tarball in bytes",
+            "example": 317119
+          },
+          "file_md5": {
+            "type": "string",
+            "format": "md5",
+            "description": "MD5 checksum for this release's tarball, can be used to verify successful download",
+            "example": "e579a02bd16f9dec56018d407be7ab32"
+          },
+          "file_sha256": {
+            "type": "string",
+            "format": "sha256",
+            "description": "SHA-256 checksum for this release's tarball, can be used to verify successful download",
+            "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "downloads": {
+            "type": "integer",
+            "description": "Number of times this release has been downloaded through the Forge",
+            "example": 12782
+          },
+          "readme": {
+            "type": "string",
+            "description": "Contents of this release's README file, optionally converted to HTML format if possible (see `with_html` param)"
+          },
+          "changelog": {
+            "type": "string",
+            "description": "Contents of this release's CHANGELOG file, optionally converted to HTML format if possible (see `with_html` param)"
+          },
+          "license": {
+            "type": "string",
+            "description": "Contents of this release's LICENSE file, optionally converted to HTML format if possible (see `with_html` param)"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Contents of this release's REFERENCE file, optionally converted to HTML format if possible (see `with_html` param)"
+          },
+          "docs": {
+            "type": "object",
+            "deprecated": true,
+            "description": "(OPTIONAL) Automatically generated documentation for custom Types included in this module release, see `reference`\nkey instead (This field is not included in response by default, see `include_fields` param for more info)\n"
+          },
+          "pe_compatibility": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "(OPTIONAL) List of compatible PE versions for the release. This is calculated from the Puppet version requirement if one is provided\nin the module metadata. If a PE version but no Puppet version is provided, the PE version requirement will be returned. (This field\nis not included in response by default, see `include_fields` param for more info)\n"
+          },
+          "tasks": {
+            "type": "array",
+            "description": "Metadata for any Bolt tasks included in this module release",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseTask"
+            }
+          },
+          "plans": {
+            "type": "array",
+            "description": "Links to metadata for Bolt plans included in this module release",
+            "items": {
+              "$ref": "#/components/schemas/ReleasePlanAbbreviated"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this Release resource was created",
+            "example": "2019-01-10 05:18:00 -0800"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this Release resource was last updated",
+            "example": "2019-01-10 05:20:17 -0800"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "iso8601",
+            "nullable": true,
+            "description": "Date and time this Release resource was marked as deleted",
+            "example": null
+          },
+          "deleted_for": {
+            "type": "string",
+            "nullable": true,
+            "description": "Author-provided reason that this module release was marked as deleted",
+            "example": null
+          }
+        }
+      },
+      "ReleaseAbbreviated": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Release resource",
+            "example": "/v3/releases/puppetlabs-apache-4.0.0"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$",
+            "description": "Unique textual identifier for this Release resource",
+            "example": "puppetlabs-apache-4.0.0"
+          },
+          "version": {
+            "type": "string",
+            "format": "semantic version",
+            "example": "4.0.0"
+          },
+          "supported": {
+            "type": "boolean",
+            "deprecated": true,
+            "description": "Indicates whether or not this specific module release is supported, this value is no longer relevant,\nplease see the `endorsement` property of the parent module instead\n",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "iso8601",
+            "description": "Date and time this Release resource was created",
+            "example": "2019-01-10 05:18:00 -0800"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "iso8601",
+            "nullable": true,
+            "description": "Date and time this Release resource was marked as deleted",
+            "example": null
+          },
+          "file_uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "Relative or absolute URL to download this release's tarball",
+            "example": "/v3/files/puppetlabs-apache-4.0.0.tar.gz"
+          },
+          "file_size": {
+            "type": "integer",
+            "format": "bytes",
+            "description": "Size of this release's tarball in bytes",
+            "example": 317119
+          }
+        }
+      },
+      "ReleaseMinimal": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Release resource",
+            "example": "/v3/releases/puppetlabs-apache-4.0.0"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$",
+            "description": "Unique textual identifier for this Release resource",
+            "example": "puppetlabs-apache-4.0.0"
+          },
+          "file_uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "Relative or absolute URL to download this release's tarball",
+            "example": "/v3/files/puppetlabs-apache-4.0.0.tar.gz"
+          }
+        }
+      },
+      "ReleaseTask": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for this task",
+            "example": "init"
+          },
+          "executable": {
+            "type": "string",
+            "description": "Executable for this task (deprecated, superseded by \"executables\")",
+            "deprecated": true,
+            "example": "init.sh"
+          },
+          "executables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of executable name(s) for all implementations of this task",
+            "example": [
+              "init.sh",
+              "init.ps1"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Description for this task",
+            "example": "Allows you to perform apache service functions"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "JSON metadata for this task, see [writing tasks](https://puppet.com/docs/bolt/latest/writing_tasks.html)\ndocumentation for more info\n"
+          }
+        }
+      },
+      "ReleasePlanAbbreviated": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path",
+            "description": "URL path to the full metadata for this plan",
+            "example": "/v3/releases/puppetlabs-lvm-1.4.0/plans/lvm::expand"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the plan, including the module name",
+            "example": "lvm::expand"
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Whether this plan is private"
+          }
+        }
+      },
+      "ReleasePlan": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "URL path and query string",
+            "description": "Relative URL for this Plan resource",
+            "example": "/v3/releases/puppetlabs-lvm-1.4.0/plans/lvm::expand"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the plan, including the module name",
+            "example": "lvm::expand"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Path to this Plan within the module's file structure",
+            "example": "plans/expand.pp"
+          },
+          "plan_metadata": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "the name of the plan, including the module name",
+                "example": "lvm::expand"
+              },
+              "file": {
+                "type": "string",
+                "description": "Path to this plan within the module's file structure",
+                "example": "plans/expand.pp"
+              },
+              "line": {
+                "type": "integer",
+                "description": "The line within the plan source file where the plan code starts",
+                "example": 15,
+                "minimum": 1
+              },
+              "private": {
+                "type": "boolean",
+                "description": "Whether this plan is private"
+              },
+              "source": {
+                "type": "string",
+                "description": "Full text of the plan source file",
+                "example": "plan lvm::expand (\n  String..."
+              },
+              "defaults": {
+                "type": "object",
+                "description": "Default values for the plan's arguments: keys are argument names, and values are their defaults",
+                "example": {
+                  "resize_fs": "true"
+                }
+              },
+              "docstring": {
+                "type": "object",
+                "description": "Raw doc objects for this plan generated by puppet-strings (YARD) docstring comments in the plan source",
+                "properties": {
+                  "tags": {
+                    "description": "Generated docstrings for any YARD tags (like @param, for example)",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "description": "Generated docstring for a specific YARD tag (like @param, for example)",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The name specified by this YARD tag",
+                          "example": "resize_fs"
+                        },
+                        "text": {
+                          "type": "string",
+                          "description": "The description text specified by this YARD tag",
+                          "example": "Whether to resize the filesystem"
+                        },
+                        "types": {
+                          "type": "array",
+                          "description": "Valid types specified by this YARD tag",
+                          "items": {
+                            "type": "string",
+                            "example": "Boolean"
+                          }
+                        },
+                        "tag_name": {
+                          "type": "string",
+                          "description": "The name of the YARD tag itself",
+                          "example": "param"
+                        }
+                      }
+                    }
+                  },
+                  "text": {
+                    "description": "Contains any free-form YARD comment text outside of tags",
+                    "type": "string",
+                    "example": "This plan expands storage on servers using LVM..."
+                  }
+                }
+              }
+            }
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Whether this plan is private"
+          }
+        }
+      },
+      "DeprecationRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "deprecate"
+            ],
+            "description": "Action to take on resource. 'deprecate' is currently the only valid option.",
+            "example": "deprecate"
+          },
+          "params": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "reason": {
+                "type": "string",
+                "nullable": true,
+                "description": "Reason for deprecation",
+                "example": "No longer maintained"
+              },
+              "replacement_slug": {
+                "type": "string",
+                "nullable": true,
+                "description": "Slug identifying a replacement Module. Accepts legacy (case-sensitive) module naming.",
+                "example": "puppet-nginx",
+                "pattern": "^[a-zA-Z0-9]+[-\\/][a-zA-Z][a-zA-Z0-9_]*$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "NotModified": {
+        "description": "Not Modified",
+        "headers": {
+          "Last-Modified": {
+            "schema": {
+              "type": "string",
+              "format": "rfc2616 httpdate",
+              "description": "Date and time that this response last changed",
+              "example": "Mon, 19 Feb 2019 10:15:08 GMT"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad Request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "400 Bad Request"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "'puppetlabs-apache4.5.0' is not a valid release slug"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "401 Unauthorized"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "This endpoint requires a valid Authorization header"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "The provided API key is invalid or has insufficient permissions for the requested operation"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not Found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "404 Not Found"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "The requested resource could not be found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "409 Conflict"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "A release with the version specified in the metadata.json already exists for this module."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v3/files/{filename}": {
+      "get": {
+        "operationId": "getFile",
+        "summary": "Download module release",
+        "description": "Download a module release tarball\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Module release filename to be downloaded (e.g. \"puppetlabs-apache-2.0.0.tar.gz\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Indicates response should be treated as an attachment and suggests a filename which matches the requested tarball name",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/modules": {
+      "get": {
+        "operationId": "getModules",
+        "summary": "List modules",
+        "description": "Returns a list of modules meeting the specified search criteria and filters. Results are paginated. All\nof the parameters are optional. To publish or delete a Release resource, see [Release operations](#tag/Release-Operations).\n",
+        "tags": [
+          "Module Operations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/limitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/offsetQuery"
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "description": "Desired order in which to return results, note that `rank` is only available (and becomes the default) when\na value has been provided for the `query` param\n",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "rank",
+                "downloads",
+                "latest_release"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "description": "Freeform textual search query",
+            "example": "apache",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "description": "Constrain results to modules that have the given tag",
+            "example": "httpd",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner",
+            "description": "Constrain results to modules owned by the given user",
+            "example": "puppetlabs",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_tasks",
+            "description": "Constrain results to modules that include\n[Bolt tasks](https://puppet.com/docs/bolt/latest/writing_tasks_and_plans.html)\n",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_plans",
+            "description": "Constrain results to modules that include\n[Bolt plans](https://puppet.com/docs/bolt/latest/writing_tasks_and_plans.html)\n",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_pdk",
+            "description": "Constrain results to modules created with\n[Puppet Development Kit](https://puppet.com/docs/pdk/latest/pdk.html)\n",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "premium",
+            "example": "true",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Constrain results to modules that require payment to download (incompatible with the\n`exclude_premium` parameter)\n"
+          },
+          {
+            "in": "query",
+            "name": "exclude_premium",
+            "example": "true",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Constrain results to modules that are free to download (incompatible with the\n`premium` parameter)\n"
+          },
+          {
+            "in": "query",
+            "name": "endorsements",
+            "description": "Constrain results to modules with at least one of the given endorsements",
+            "example": "supported+approved",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "approved",
+                  "partner"
+                ]
+              }
+            },
+            "style": "spaceDelimited",
+            "explode": false
+          },
+          {
+            "in": "query",
+            "name": "operatingsystem",
+            "description": "Constrain results to modules that explicitly support the given operating system, see\n[metadata.json documentation](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-operating-system-compatibility) for more information about possible values, see also the `only_latest` param\n",
+            "example": "redhat",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operatingsystemrelease",
+            "description": "Constrain results to modules that explicitly support the\ngiven release of the given operating system, see [metadata.json\ndocumentation](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-operating-system-compatibility)\nfor more information about possible values. Requires `operatingsystem`.\n",
+            "example": "2012 R2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pe_requirement",
+            "description": "Constrain results to modules that explicitly list a Puppet Enterprise version requirement in the given\n[semantic versioning range](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-versions),\nsee also the `only_latest` param\n",
+            "example": "5.x",
+            "schema": {
+              "type": "string",
+              "format": "semantic version range"
+            }
+          },
+          {
+            "in": "query",
+            "name": "puppet_requirement",
+            "description": "Constrain results to modules that explicitly list a Puppet version requirement in the given\n[semantic versioning range](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-versions),\nsee also the `only_latest` param\n",
+            "example": "6.x",
+            "schema": {
+              "type": "string",
+              "format": "semantic version range"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_minimum_score",
+            "description": "Constrain results to modules with at least one release that has a minimum validation_score greater\nthan or equal to the provided integer, see also the `only_latest` param\n",
+            "example": 90,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "module_groups",
+            "description": "Constrain results to modules in any of the given module groups",
+            "example": [
+              "base",
+              "pe_only"
+            ],
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "pe_only"
+                ]
+              }
+            },
+            "style": "spaceDelimited",
+            "explode": false
+          },
+          {
+            "in": "query",
+            "name": "show_deleted",
+            "description": "Include modules where all released versions have been marked as deleted",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hide_deprecated",
+            "description": "Exclude deprecated modules from the results. Treats any value as true.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only_latest",
+            "description": "When checking modules against the `operatingsystem`, `operatingsystemrelease`,\n`pe_requirement`, or `puppet_requirement` filters, only consider the compatibility\ninformation for the latest release of the module, where \"latest\" means: the module release\nwith the highest precedence, non-pre-release version (see also:\n[semver.org](https://semver.org/#spec-item-11))\n",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "in": "query",
+            "name": "slugs",
+            "description": "A comma-separated list of specific modules to retrieve. Module names should be\nspecified in the hyphenated \"slug\" format (`author_name-module_name`). If at least\none of the requested modules is not found, this endpoint returns a 404 error, with\nthe slugs of the missing module(s) in the body. This parameter is incompatible\nwith the `endorsements`, `module_groups`, `only_latest`, `operatingsystem`,\n`operatingsystemrelease`, `owner`, `pe_requirement`, `puppet_requirement`, `query`,\n`show_deleted`, `hide_deprecated`, `tag`, `with_minimum_score`, `with_pdk`,\n`with_tasks`, and `with_plans` parameters. These will produce 400 errors when\nincluded. Note that any matching soft-deleted modules (modules with no associated\nreleases) will always be included in the results alongside modules with releases.\n",
+            "example": [
+              "puppetlabs-stdlib",
+              "puppet-logrotate"
+            ],
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          },
+          {
+            "in": "query",
+            "name": "starts_with",
+            "description": "Constrain results to modules whose slug begins with the provided prefix\n",
+            "example": "pup",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "supported",
+            "description": "Constrain results to [Supported modules](https://forge.puppet.com/supported), see \"endorsements\"\nparam instead\n",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_release_since",
+            "description": "Constrain results to modules that have had at least one release since the given ISO 8601 date\n",
+            "schema": {
+              "type": "string",
+              "example": "2020-02-22"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pagination": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Pagination"
+                        },
+                        {
+                          "properties": {
+                            "first": {
+                              "example": "/v3/modules?offset=0&limit=20"
+                            },
+                            "current": {
+                              "example": "/v3/modules?offset=0&limit=20"
+                            },
+                            "next": {
+                              "example": "/v3/modules?offset=20&limit=20"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Module"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/search_filters": {
+      "post": {
+        "operationId": "addSearchFilter",
+        "summary": "Create search filter",
+        "description": "Create a new search filter for the authenticated user.\n",
+        "tags": [
+          "Search Filter Operations"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search_filter_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*$"
+            },
+            "required": true,
+            "description": "Publish a new search filter for logged-in user\n",
+            "example": "apache,supported,linux"
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchFilter"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getUserSearchFilters",
+        "summary": "Get user's search filters",
+        "description": "Retrieve all search filters for the authenticated user.",
+        "tags": [
+          "Search Filter Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchFilterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/search_filters/{id}": {
+      "delete": {
+        "summary": "Delete search filter by ID",
+        "description": "Delete user's search filter by ID for authenticated user",
+        "operationId": "deleteUserSearchFilter",
+        "tags": [
+          "Search Filter Operations"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Search filter ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/modules/{module_slug}": {
+      "get": {
+        "operationId": "getModule",
+        "summary": "Fetch module",
+        "description": "Returns data for a single Module resource identified by the module's `slug` value.\n",
+        "tags": [
+          "Module Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the Module resource to retrieve",
+            "example": "puppetlabs-apache"
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Module"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "deprecateModule",
+        "summary": "Deprecate module",
+        "description": "Mark a module, identified by the module's `slug` value, as \"deprecated\". Deprecated modules are still\nvisible on the Forge website, but users are directed to strongly consider alternate modules.\n**Because the deprecate action is intended to be one-way, there is no operation for undeprecating a module.**\n",
+        "tags": [
+          "Module Operations"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-zA-Z][a-zA-Z0-9_]*$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the module to deprecate",
+            "example": "puppetlabs-apache"
+          }
+        ],
+        "requestBody": {
+          "description": "Action and params for patch operation.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeprecationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content (the module was successfully marked as deprecated)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteModule",
+        "summary": "Delete module",
+        "description": "Perform a soft delete of a module, identified by the module's `slug` value. The module's releases will still be available for direct download via their associated `/v3/files` endpoints, but the module will no longer be readily available through the Forge web interface.\n",
+        "tags": [
+          "Module Operations"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "module_slug",
+            "description": "Unique textual identifier (slug) of the Module resource to retrieve",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-zA-Z][a-zA-Z0-9_]*$"
+            },
+            "required": true,
+            "example": "puppetlabs-apache"
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "description": "Reason for deletion",
+            "required": true,
+            "example": "Broken code",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content (the module was deleted successfully)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/releases": {
+      "get": {
+        "operationId": "getReleases",
+        "summary": "List module releases",
+        "description": "Returns a list of module releases meeting the specified search criteria and filters. Results are paginated.\nAll of the parameters are optional.\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/limitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/offsetQuery"
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "description": "Desired order in which to return results\n",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "downloads",
+                "release_date",
+                "module"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "module",
+            "description": "Constrain results to releases for a given module",
+            "example": "puppetlabs-apache",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "owner",
+            "description": "Constrain results to releases for any modules owned by the given user",
+            "example": "puppetlabs",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_pdk",
+            "description": "Constrain results to module releases created with\n[Puppet Development Kit](https://puppet.com/docs/pdk/latest/pdk.html)\n",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operatingsystem",
+            "description": "Constrain results to module releases that explicitly support the given operating system, see\n[metadata.json documentation](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-operating-system-compatibility) for more information about possible values\n",
+            "example": "windows",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operatingsystemrelease",
+            "description": "Constrain results to module releases that explicitly support the\ngiven release of the given operating system, see [metadata.json\ndocumentation](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-operating-system-compatibility)\nfor more information about possible values. Requires `operatingsystem`.\n",
+            "example": "2012 R2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pe_requirement",
+            "description": "Constrain results to module releases that explicitly list a Puppet Enterprise version requirement in the given\n[semantic versioning range](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-versions)\n",
+            "example": "5.x",
+            "schema": {
+              "type": "string",
+              "format": "semantic version range"
+            }
+          },
+          {
+            "in": "query",
+            "name": "puppet_requirement",
+            "description": "Constrain results to module releases that explicitly list a Puppet version requirement in the given\n[semantic versioning range](https://puppet.com/docs/puppet/latest/modules_metadata.html#specifying-versions)\n",
+            "example": "6.x",
+            "schema": {
+              "type": "string",
+              "format": "semantic version range"
+            }
+          },
+          {
+            "in": "query",
+            "name": "module_groups",
+            "description": "Constrain results to releases for modules in any of the given module groups",
+            "example": "base+pe_only",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "base",
+                  "pe_only"
+                ]
+              }
+            },
+            "style": "spaceDelimited",
+            "explode": false
+          },
+          {
+            "in": "query",
+            "name": "show_deleted",
+            "description": "Include releases marked as \"deleted\" in results",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hide_deprecated",
+            "description": "Exclude releases of deprecated modules from the results. Treats any value as true.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          },
+          {
+            "in": "query",
+            "name": "supported",
+            "description": "Constrain results to releases for [Supported modules](https://forge.puppet.com/supported)\n",
+            "deprecated": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pagination": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Pagination"
+                        },
+                        {
+                          "properties": {
+                            "first": {
+                              "example": "/v3/releases?offset=0&limit=20"
+                            },
+                            "current": {
+                              "example": "/v3/releases?offset=0&limit=20"
+                            },
+                            "next": {
+                              "example": "/v3/releases?offset=20&limit=20"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Release"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          }
+        }
+      },
+      "post": {
+        "operationId": "addRelease",
+        "summary": "Create module release",
+        "description": "Publish a new module or new release of an existing module\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Release tarball to publish, either base64 encoded or as a multipart/form-data upload.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "base64",
+                    "example": "H4sIABYkiFwAA+09CT..."
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseMinimal"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/v3/releases/{release_slug}": {
+      "get": {
+        "operationId": "getRelease",
+        "summary": "Fetch module release",
+        "description": "Returns data for a single module Release resource identified by the module release's `slug` value.\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the module Release resource to retrieve",
+            "example": "puppetlabs-apache-4.0.0"
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRelease",
+        "summary": "Delete module release",
+        "description": "Perform a soft delete of a module release, identified by the module release's `slug` value. The release will still be available for direct download from it's `/v3/files` endpoint, but will not be readily available in the Forge web interface.\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the module release to delete",
+            "example": "puppetlabs-apache-4.0.0"
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "description": "Reason for deletion",
+            "required": true,
+            "example": "bugs",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content (the release was deleted successfully)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/releases/{release_slug}/plans": {
+      "get": {
+        "operationId": "getReleasePlans",
+        "summary": "List module release plans",
+        "description": "Returns a paginated list of all plans from the module release identified by the `release_slug` name. The `release_slug` is composed of the hyphenated module author, name, and version number (example: `puppetlabs-lvm-1.4.0`).\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the module Release resource to retrieve",
+            "example": "puppetlabs-apache-4.0.0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pagination": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Pagination"
+                        },
+                        {
+                          "properties": {
+                            "first": {
+                              "example": "/v3/releases/{release_slug}/plans?offset=0&limit=20"
+                            },
+                            "current": {
+                              "example": "/v3/releases/{release_slug}/plans?offset=0&limit=20"
+                            },
+                            "next": {
+                              "example": "/v3/releases/{release_slug}/plans?offset=20&limit=20"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ReleasePlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/releases/{release_slug}/plans/{plan_name}": {
+      "get": {
+        "operationId": "getReleasePlan",
+        "summary": "Fetch module release plan",
+        "description": "Returns a summary of the given plan from the module release identified by the `release_slug` name. The `release_slug` is composed of the hyphenated module author, name, and version number (example: `puppetlabs-lvm-1.4.0`). The `plan_name` should be the full name including the module name (example: `lvm::expand`).\n",
+        "tags": [
+          "Release Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+[-\\/][a-z][a-z0-9_]*[-\\/][0-9]+\\.[0-9]+\\.[0-9]+(?:[\\-+].+)?$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the module Release resource to retrieve",
+            "example": "puppetlabs-lvm-1.4.0"
+          },
+          {
+            "in": "path",
+            "name": "plan_name",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*(?:::[a-z][a-z0-9_]*)*$"
+            },
+            "required": true,
+            "description": "Full name of desired plan, including module name and namespaces",
+            "example": "lvm::expand"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasePlan"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v3/users": {
+      "get": {
+        "operationId": "getUsers",
+        "summary": "List users",
+        "description": "Provides information about Puppet Forge user accounts. By default, results are returned in alphabetical\norder by username and paginated with 20 users per page. It's also possible to sort by number of published\nreleases, total download counts for all the user's modules, or by the date of the user's latest release.\nAll parameters are optional.\n",
+        "tags": [
+          "User Operations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/limitQuery"
+          },
+          {
+            "$ref": "#/components/parameters/offsetQuery"
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "description": "Desired order in which to return results",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "username",
+                "releases",
+                "downloads",
+                "latest_release"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pagination": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Pagination"
+                        },
+                        {
+                          "properties": {
+                            "first": {
+                              "example": "/v3/users?offset=0&limit=20"
+                            },
+                            "current": {
+                              "example": "/v3/users?offset=0&limit=20"
+                            },
+                            "next": {
+                              "example": "/v3/users?offset=20&limit=20"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          }
+        }
+      }
+    },
+    "/v3/users/{user_slug}": {
+      "get": {
+        "operationId": "getUser",
+        "summary": "Fetch user",
+        "description": "Returns data for a single User resource identified by the user's `slug` value.\n",
+        "tags": [
+          "User Operations"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_slug",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]+$"
+            },
+            "required": true,
+            "description": "Unique textual identifier (slug) of the User resource to retrieve",
+            "example": "puppetlabs"
+          },
+          {
+            "$ref": "#/components/parameters/withHTML"
+          },
+          {
+            "$ref": "#/components/parameters/includeFields"
+          },
+          {
+            "$ref": "#/components/parameters/excludeFields"
+          },
+          {
+            "$ref": "#/components/parameters/ifModifiedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  }
+}

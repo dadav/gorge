@@ -1,0 +1,6 @@
+---
+router: chi
+outputAsLibrary: true
+# onlyInterfaces: true
+packageName: gorge
+sourceFolder: openapi
