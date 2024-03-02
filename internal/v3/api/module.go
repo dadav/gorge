@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dadav/gorge/internal/backend"
 	"github.com/dadav/gorge/internal/log"
+	"github.com/dadav/gorge/internal/v3/backend"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -22,27 +22,25 @@ func NewModuleOperationsApi() *ModuleOperationsApi {
 	return &ModuleOperationsApi{}
 }
 
+type DeleteModule500Response struct {
+	Message string   `json:"message,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
+}
+
 // DeleteModule - Delete module
 func (s *ModuleOperationsApi) DeleteModule(ctx context.Context, moduleSlug string, reason string) (gen.ImplResponse, error) {
-	// TODO - update DeleteModule with the required logic for this service method.
-	// Add api_module_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	err := backend.ConfiguredBackend.DeleteModuleBySlug(moduleSlug)
+	if err == nil {
+		return gen.Response(204, nil), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(204, {}) or use other options such as http.Ok ...
-	// return Response(204, nil),nil
-
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(401, GetUserSearchFilters401Response{}) or use other options such as http.Ok ...
-	// return Response(401, GetUserSearchFilters401Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(403, DeleteUserSearchFilter403Response{}) or use other options such as http.Ok ...
-	// return Response(403, DeleteUserSearchFilter403Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("DeleteModule method not implemented")
+	return gen.Response(
+		500,
+		DeleteModule500Response{
+			Message: err.Error(),
+			Errors:  []string{err.Error()},
+		},
+	), nil
 }
 
 // DeprecateModule - Deprecate module
@@ -98,7 +96,7 @@ func (s *ModuleOperationsApi) GetModule(ctx context.Context, moduleSlug string, 
 func (s *ModuleOperationsApi) GetModules(ctx context.Context, limit int32, offset int32, sortBy string, query string, tag string, owner string, withTasks bool, withPlans bool, withPdk bool, premium bool, excludePremium bool, endorsements []string, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, withMinimumScore int32, moduleGroups []string, showDeleted bool, hideDeprecated bool, onlyLatest bool, slugs []string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, startsWith string, supported bool, withReleaseSince string) (gen.ImplResponse, error) {
 	results := []gen.Module{}
 	filtered := []gen.Module{}
-	allModules := backend.ConfiguredBackend.GetAllModules()
+	allModules, _ := backend.ConfiguredBackend.GetAllModules()
 	params := url.Values{}
 	params.Add("offset", strconv.Itoa(int(offset)))
 	params.Add("limit", strconv.Itoa(int(limit)))

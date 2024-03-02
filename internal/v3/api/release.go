@@ -2,7 +2,9 @@ package v3
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dadav/gorge/internal/backend"
 	"github.com/dadav/gorge/internal/config"
+	"github.com/dadav/gorge/internal/v3/backend"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -31,48 +33,50 @@ type GetRelease404Response struct {
 
 // AddRelease - Create module release
 func (s *ReleaseOperationsApi) AddRelease(ctx context.Context, addReleaseRequest gen.AddReleaseRequest) (gen.ImplResponse, error) {
-	// TODO - update AddRelease with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	base64EncodedTarball := addReleaseRequest.File
 
-	// TODO: Uncomment the next line to return response Response(201, ReleaseMinimal{}) or use other options such as http.Ok ...
-	// return Response(201, ReleaseMinimal{}), nil
+	decodedTarball, err := base64.StdEncoding.DecodeString(base64EncodedTarball)
+	if err != nil {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: "Could not decode provided data",
+			Errors:  []string{err.Error()},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
+	release, err := backend.ConfiguredBackend.AddRelease(decodedTarball)
+	if err != nil {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: "could not add release",
+			Errors:  []string{err.Error()},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(401, GetUserSearchFilters401Response{}) or use other options such as http.Ok ...
-	// return Response(401, GetUserSearchFilters401Response{}), nil
+	return gen.Response(201, gen.ReleaseMinimal{
+		Uri:     release.Uri,
+		FileUri: release.FileUri,
+		Slug:    release.Slug,
+	}), nil
+}
 
-	// TODO: Uncomment the next line to return response Response(403, DeleteUserSearchFilter403Response{}) or use other options such as http.Ok ...
-	// return Response(403, DeleteUserSearchFilter403Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(409, AddSearchFilter409Response{}) or use other options such as http.Ok ...
-	// return Response(409, AddSearchFilter409Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("AddRelease method not implemented")
+type DeleteRelease500Response struct {
+	Message string   `json:"message,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
 }
 
 // DeleteRelease - Delete module release
 func (s *ReleaseOperationsApi) DeleteRelease(ctx context.Context, releaseSlug string, reason string) (gen.ImplResponse, error) {
-	// TODO - update DeleteRelease with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	err := backend.ConfiguredBackend.DeleteReleaseBySlug(releaseSlug)
+	if err == nil {
+		return gen.Response(204, nil), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(204, {}) or use other options such as http.Ok ...
-	// return Response(204, nil),nil
-
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(401, GetUserSearchFilters401Response{}) or use other options such as http.Ok ...
-	// return Response(401, GetUserSearchFilters401Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(403, DeleteUserSearchFilter403Response{}) or use other options such as http.Ok ...
-	// return Response(403, DeleteUserSearchFilter403Response{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("DeleteRelease method not implemented")
+	return gen.Response(
+		500,
+		DeleteRelease500Response{
+			Message: err.Error(),
+			Errors:  []string{err.Error()},
+		},
+	), nil
 }
 
 func ReleaseToModule(releaseSlug string) string {
@@ -101,7 +105,7 @@ type GetRelease500Response struct {
 
 // GetRelease - Fetch module release
 func (s *ReleaseOperationsApi) GetRelease(ctx context.Context, releaseSlug string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string) (gen.ImplResponse, error) {
-	metadata, readme, err := backend.ReadReleaseMetadata(releaseSlug)
+	release, err := backend.ConfiguredBackend.GetReleaseBySlug(releaseSlug)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
@@ -115,46 +119,84 @@ func (s *ReleaseOperationsApi) GetRelease(ctx context.Context, releaseSlug strin
 		}), nil
 	}
 
-	return gen.Response(http.StatusOK, gen.Release{
-		Slug:   releaseSlug,
-		Module: gen.ReleaseModule{Name: metadata.Name},
-		Readme: readme,
-	}), nil
+	return gen.Response(http.StatusOK, release), nil
+}
+
+func abbrReleaseToFullReleasePlan(abbrReleasePlan gen.ReleasePlanAbbreviated) gen.ReleasePlan {
+	planFile := fmt.Sprintf("plans/%s.pp", strings.Join(strings.Split(abbrReleasePlan.Name, "::")[1:], "/"))
+	return gen.ReleasePlan{
+		Uri:      abbrReleasePlan.Uri,
+		Name:     abbrReleasePlan.Name,
+		Private:  abbrReleasePlan.Private,
+		Filename: planFile,
+		PlanMetadata: gen.ReleasePlanPlanMetadata{
+			Name:    abbrReleasePlan.Name,
+			Private: abbrReleasePlan.Private,
+			File:    planFile,
+		},
+	}
 }
 
 // GetReleasePlan - Fetch module release plan
 func (s *ReleaseOperationsApi) GetReleasePlan(ctx context.Context, releaseSlug string, planName string) (gen.ImplResponse, error) {
-	// TODO - update GetReleasePlan with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	release, err := backend.ConfiguredBackend.GetReleaseBySlug(releaseSlug)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
+				Message: http.StatusText(http.StatusNotFound),
+				Errors:  []string{"plan not found"},
+			}), nil
+		}
+		return gen.Response(http.StatusInternalServerError, GetRelease500Response{
+			Message: http.StatusText(http.StatusInternalServerError),
+			Errors:  []string{"error while reading release metadata"},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, ReleasePlan{}) or use other options such as http.Ok ...
-	// return Response(200, ReleasePlan{}), nil
-
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetReleasePlan method not implemented")
+	for _, plan := range release.Plans {
+		if plan.Name == planName {
+			// modulename::foo becomes plans/foo.pp
+			return gen.Response(200, abbrReleaseToFullReleasePlan(plan)), nil
+		}
+	}
+	return gen.Response(http.StatusNotFound, gen.GetFile404Response{
+		Message: http.StatusText(http.StatusNotFound),
+		Errors:  []string{"plan not found"},
+	}), nil
 }
 
 // GetReleasePlans - List module release plans
 func (s *ReleaseOperationsApi) GetReleasePlans(ctx context.Context, releaseSlug string) (gen.ImplResponse, error) {
-	// TODO - update GetReleasePlans with the required logic for this service method.
-	// Add api_release_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	release, err := backend.ConfiguredBackend.GetReleaseBySlug(releaseSlug)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
+				Message: http.StatusText(http.StatusNotFound),
+				Errors:  []string{"plan not found"},
+			}), nil
+		}
+		return gen.Response(http.StatusInternalServerError, GetRelease500Response{
+			Message: http.StatusText(http.StatusInternalServerError),
+			Errors:  []string{"error while reading release metadata"},
+		}), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, GetReleasePlans200Response{}) or use other options such as http.Ok ...
-	// return Response(200, GetReleasePlans200Response{}), nil
+	results := []gen.ReleasePlan{}
+	for _, plan := range release.Plans {
+		results = append(results, abbrReleaseToFullReleasePlan(plan))
+	}
 
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("GetReleasePlans method not implemented")
+	return gen.Response(200, gen.GetReleasePlans200Response{
+		Pagination: gen.GetReleasePlans200ResponsePagination{},
+		Results:    results,
+	}), nil
 }
 
 // GetReleases - List module releases
 func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, offset int32, sortBy string, module string, owner string, withPdk bool, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, moduleGroups []string, showDeleted bool, hideDeprecated bool, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, supported bool) (gen.ImplResponse, error) {
 	results := []gen.Release{}
 	filtered := []gen.Release{}
-	allReleases := backend.ConfiguredBackend.GetAllReleases()
+	allReleases, _ := backend.ConfiguredBackend.GetAllReleases()
 	params := url.Values{}
 	params.Add("offset", strconv.Itoa(int(offset)))
 	params.Add("limit", strconv.Itoa(int(limit)))

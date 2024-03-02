@@ -30,7 +30,7 @@ func (w *capturedResponseWriter) sendCapturedResponse() {
 	w.ResponseWriter.Write(w.body)
 }
 
-func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool) func(next http.Handler) http.Handler {
+func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response, []byte)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// capture response
@@ -39,7 +39,7 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool) func(next
 
 			if forwardToProxy(capturedResponseWriter.status) {
 				log.Log.Infof("Forwarding request to %s\n", upstreamHost)
-				forwardRequest(w, r, upstreamHost)
+				forwardRequest(w, r, upstreamHost, proxiedResponseCb)
 				return
 			}
 
@@ -49,7 +49,7 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool) func(next
 	}
 }
 
-func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string) {
+func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string, proxiedResponseCb func(*http.Response, []byte)) {
 	// Create a buffer to store the request body
 	var requestBodyBytes []byte
 	if r.Body != nil {
@@ -63,7 +63,7 @@ func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string) 
 		return
 	}
 
-	forwardedRequest, err := http.NewRequest(r.Method, forwardUrl, bytes.NewBuffer(requestBodyBytes))
+	forwardedRequest, err := http.NewRequestWithContext(r.Context(), r.Method, forwardUrl, bytes.NewBuffer(requestBodyBytes))
 	if err != nil {
 		http.Error(w, "Failed to create forwarded request", http.StatusInternalServerError)
 		return
@@ -75,6 +75,9 @@ func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string) 
 	// Copy headers from the original request
 	forwardedRequest.Header = make(http.Header)
 	for key, values := range r.Header {
+		if key == "Authorization" {
+			continue
+		}
 		for _, value := range values {
 			forwardedRequest.Header.Add(key, value)
 		}
@@ -108,4 +111,5 @@ func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string) 
 		return
 	}
 	w.Write(body)
+	proxiedResponseCb(resp, body)
 }

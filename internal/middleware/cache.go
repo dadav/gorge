@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/dadav/gorge/internal/config"
 	"github.com/dadav/gorge/internal/log"
 )
 
@@ -29,7 +31,7 @@ func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler)
 				}
 			}
 
-			if !matched {
+			if !matched || r.Method != "GET" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -42,20 +44,30 @@ func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler)
 			cacheFileHeadersPath := fmt.Sprintf("%s_headers", cacheFilePath)
 
 			cacheControlHeader := r.Header.Get("Cache-Control")
-			if cacheControlHeader != "no-cache" {
-				if _, err := os.Stat(cacheFilePath); err == nil {
-					data, err := os.ReadFile(cacheFilePath)
-					if err == nil {
-						log.Log.Debugf("Send response from cache for %s\n", r.URL.Path)
-						headerBytes, err := os.ReadFile(cacheFileHeadersPath)
-						if err == nil {
-							var contentHeaders ContentHeaders
-							json.Unmarshal(headerBytes, &contentHeaders)
-							w.Header().Add("Content-Type", contentHeaders.Type)
-							w.Header().Add("Content-Encoding", contentHeaders.Encoding)
+			if !strings.Contains(cacheControlHeader, "no-cache") {
+				if cacheFileInfo, err := os.Stat(cacheFilePath); err == nil {
+					expirationTime := cacheFileInfo.ModTime().Add(time.Duration(config.CacheMaxAge) * time.Second)
+					if time.Now().After(expirationTime) {
+						log.Log.Debugf("Cached file expired: %s\n", cacheFilePath)
+						err := os.Remove(cacheFilePath)
+						if err != nil {
+							log.Log.Error(err)
 						}
-						w.Write(data)
-						return
+					} else {
+						data, err := os.ReadFile(cacheFilePath)
+						if err == nil {
+							log.Log.Debugf("Send response from cache for %s\n", r.URL.Path)
+							headerBytes, err := os.ReadFile(cacheFileHeadersPath)
+							if err == nil {
+								var contentHeaders ContentHeaders
+								json.Unmarshal(headerBytes, &contentHeaders)
+								w.Header().Add("Content-Type", contentHeaders.Type)
+								w.Header().Add("Content-Encoding", contentHeaders.Encoding)
+							}
+							w.Write(data)
+							return
+						}
+
 					}
 				}
 			}
@@ -63,7 +75,7 @@ func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler)
 			capturedResponseWriter := &capturedResponseWriter{ResponseWriter: w}
 			next.ServeHTTP(capturedResponseWriter, r)
 
-			if capturedResponseWriter.status == http.StatusOK && cacheControlHeader != "no-store" {
+			if capturedResponseWriter.status == http.StatusOK && !strings.Contains(cacheControlHeader, "no-store") {
 				err := os.WriteFile(cacheFilePath, capturedResponseWriter.body, 0600)
 				if err != nil {
 					log.Log.Error(err)
