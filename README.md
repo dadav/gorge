@@ -1,7 +1,7 @@
 # ⭐ Gorge
 
 <p align="center">
-  <img src="logo.png" width="600" />
+  <img src="logo.png" width="400" />
   <br />
   <a href="https://github.com/dadav/gorge/releases"><img src="https://img.shields.io/github/release/dadav/gorge.svg" alt="Latest Release"></a>
   <a href="https://pkg.go.dev/github.com/dadav/gorge?tab=doc"><img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="Go Docs"></a>
