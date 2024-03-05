@@ -12,6 +12,10 @@
 Gorge is a go implementation for <a href="https://forgeapi.puppet.com">forgeapi.puppet.com</a>
 </p>
 
+## 🅰️ Status
+
+This project is still in an very early stage. Contributions are very welcome.
+
 ## 🐶 How it works
 
 You put your modules in the directory `~/.gorge/modules/$module/$release.tar.gz` and gorge will
