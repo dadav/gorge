@@ -53,7 +53,7 @@ Flags:
       --bind string               host to listen to (default "127.0.0.1")
       --cache-max-age int         max number of seconds responses should be cached (default 86400)
       --cache-prefixes string     url prefixes to cache (default "/v3/files")
-      --cachedir string           cache directory (default "/var/cache/gorge")
+      --cachedir string           cache directory (default "~/.gorge/cache")
       --cors string               allowed cors origins separated by comma (default "*")
       --dev                       enables dev mode
       --fallback-proxy string     optional fallback upstream proxy url
@@ -61,7 +61,7 @@ Flags:
       --import-proxied-releases   add every proxied modules to local store
       --jwt-secret string         jwt secret (default "changeme")
       --jwt-token-path string     jwt token path (default "~/.gorge/token")
-      --modulesdir string         directory containing all the modules (default "/opt/gorge/modules")
+      --modulesdir string         directory containing all the modules (default "~/.gorge/modules")
       --no-cache                  disables the caching functionality
       --port int                  the port to listen to (default 8080)
       --tls-cert string           path to tls cert file
