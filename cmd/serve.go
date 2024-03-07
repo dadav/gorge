@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 
 	config "github.com/dadav/gorge/internal/config"
@@ -64,6 +63,10 @@ You can also enable the caching functionality to speed things up.`,
 			log.Log.Fatal(err)
 		}
 		config.TlsKeyPath, err = homedir.Expand(config.TlsKeyPath)
+		if err != nil {
+			log.Log.Fatal(err)
+		}
+		config.JwtTokenPath, err = homedir.Expand(config.JwtTokenPath)
 		if err != nil {
 			log.Log.Fatal(err)
 		}
@@ -114,18 +117,13 @@ You can also enable the caching functionality to speed things up.`,
 					return r.Method != "GET"
 				}))
 
-				userHome, err := homedir.Dir()
-				if err != nil {
-					log.Log.Fatal(err)
-				}
-				tokenFile := filepath.Join(userHome, config.JwtTokenPath)
-				if _, err = os.Stat(tokenFile); err != nil {
+				if _, err = os.Stat(config.JwtTokenPath); err != nil {
 					_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user": "admin"})
-					err = os.WriteFile(tokenFile, []byte(tokenString), 0400)
+					err = os.WriteFile(config.JwtTokenPath, []byte(tokenString), 0400)
 					if err != nil {
 						log.Log.Fatal(err)
 					}
-					log.Log.Infof("JWT token was written to %s\n", tokenFile)
+					log.Log.Infof("JWT token was written to %s\n", config.JwtTokenPath)
 				}
 			}
 
