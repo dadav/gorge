@@ -14,6 +14,7 @@ import (
 
 	"github.com/dadav/gorge/internal/config"
 	"github.com/dadav/gorge/internal/v3/backend"
+	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -65,6 +66,16 @@ type DeleteRelease500Response struct {
 
 // DeleteRelease - Delete module release
 func (s *ReleaseOperationsApi) DeleteRelease(ctx context.Context, releaseSlug string, reason string) (gen.ImplResponse, error) {
+	if !utils.CheckReleaseSlug(releaseSlug) {
+		err := errors.New("invalid release slug")
+		return gen.Response(
+			400,
+			DeleteRelease500Response{
+				Message: err.Error(),
+				Errors:  []string{err.Error()},
+			},
+		), nil
+	}
 	err := backend.ConfiguredBackend.DeleteReleaseBySlug(releaseSlug)
 	if err == nil {
 		return gen.Response(204, nil), nil

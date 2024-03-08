@@ -19,6 +19,7 @@ import (
 	"github.com/dadav/gorge/internal/config"
 	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/model"
+	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 	"golang.org/x/mod/semver"
 )
@@ -139,7 +140,12 @@ func (s *FilesystemBackend) AddRelease(releaseData []byte) (*gen.Release, error)
 	if err != nil {
 		return nil, err
 	}
+
 	releaseSlug := fmt.Sprintf("%s-%s", metadata.Name, metadata.Version)
+	if !utils.CheckReleaseSlug(releaseSlug) {
+		return nil, errors.New("invalid release slug")
+	}
+
 	if _, ok := s.Releases[releaseSlug]; ok {
 		return nil, errors.New("release already exist")
 	}
@@ -428,6 +434,9 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 				return nil, readme.String(), err
 			}
 
+			if !utils.CheckModuleSlug(releaseMetadata.Name) {
+				return nil, readme.String(), errors.New("invalid module name")
+			}
 		case "README.md":
 			_, err = io.Copy(readme, tarReader)
 			if err != nil {

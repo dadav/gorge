@@ -11,6 +11,7 @@ import (
 
 	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/v3/backend"
+	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
@@ -29,6 +30,17 @@ type DeleteModule500Response struct {
 
 // DeleteModule - Delete module
 func (s *ModuleOperationsApi) DeleteModule(ctx context.Context, moduleSlug string, reason string) (gen.ImplResponse, error) {
+	if !utils.CheckModuleSlug(moduleSlug) {
+		err := errors.New("invalid module slug")
+		return gen.Response(
+			400,
+			DeleteModule500Response{
+				Message: err.Error(),
+				Errors:  []string{err.Error()},
+			},
+		), nil
+	}
+
 	err := backend.ConfiguredBackend.DeleteModuleBySlug(moduleSlug)
 	if err == nil {
 		return gen.Response(204, nil), nil
