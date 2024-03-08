@@ -94,14 +94,27 @@ func ReleaseToModule(releaseSlug string) string {
 	return releaseSlug[:strings.LastIndex(releaseSlug, "-")]
 }
 
+type GetFile400Response struct {
+	Message string `json:"message,omitempty"`
+
+	Errors []string `json:"errors,omitempty"`
+}
+
 // GetFile - Download module release
 func (s *ReleaseOperationsApi) GetFile(ctx context.Context, filename string) (gen.ImplResponse, error) {
+	if !utils.CheckReleaseSlug(strings.TrimSuffix(filename, ".tar.gz")) {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: http.StatusText(http.StatusNotFound),
+			Errors:  []string{"release slug is invalid"},
+		}), nil
+	}
+
 	f, err := os.Open(filepath.Join(config.ModulesDir, ReleaseToModule(filename), filename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
 				Message: http.StatusText(http.StatusNotFound),
-				Errors:  []string{"The file does not exist."},
+				Errors:  []string{"the file does not exist"},
 			}), nil
 		}
 	}
