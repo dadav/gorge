@@ -249,7 +249,7 @@ func (s *FilesystemBackend) GetReleaseBySlug(slug string) (*gen.Release, error) 
 			}
 		}
 	}
-	return nil, errors.New("release not found")
+	return nil, os.ErrNotExist
 }
 
 func (s *FilesystemBackend) DeleteModuleBySlug(slug string) error {
