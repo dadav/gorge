@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	config "github.com/dadav/gorge/internal/config"
 	log "github.com/dadav/gorge/internal/log"
@@ -83,9 +84,13 @@ You can also enable the caching functionality to speed things up.`,
 				log.Log.Fatal(err)
 			}
 		}
-		err = backend.ConfiguredBackend.LoadModules()
-		if err != nil {
-			log.Log.Fatal(err)
+
+		// if set, continuously check modules directory every ModulesScanSec seconds
+		// otherwise, check only at startup
+		if config.ModulesScanSec > 0 {
+			go checkModules(config.ModulesScanSec)
+		} else {
+			checkModules(config.ModulesScanSec)
 		}
 
 		if config.ApiVersion == "v3" {
@@ -182,6 +187,7 @@ func init() {
 	serveCmd.Flags().IntVar(&config.Port, "port", 8080, "the port to listen to")
 	serveCmd.Flags().StringVar(&config.Bind, "bind", "127.0.0.1", "host to listen to")
 	serveCmd.Flags().StringVar(&config.ModulesDir, "modulesdir", "~/.gorge/modules", "directory containing all the modules")
+	serveCmd.Flags().IntVar(&config.ModulesScanSec, "modules-scan-sec", 0, "seconds between scans of directory containing all the modules. (default 0 means only scan at startup)")
 	serveCmd.Flags().StringVar(&config.Backend, "backend", "filesystem", "backend to use")
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
 	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional fallback upstream proxy url")
@@ -195,4 +201,20 @@ func init() {
 	serveCmd.Flags().Int64Var(&config.CacheMaxAge, "cache-max-age", 86400, "max number of seconds responses should be cached")
 	serveCmd.Flags().BoolVar(&config.NoCache, "no-cache", false, "disables the caching functionality")
 	serveCmd.Flags().BoolVar(&config.ImportProxiedReleases, "import-proxied-releases", false, "add every proxied modules to local store")
+}
+
+func checkModules(sleepSeconds int) {
+	var err error
+
+	for {
+		err = backend.ConfiguredBackend.LoadModules()
+		if err != nil {
+			log.Log.Fatal(err)
+		}
+		if sleepSeconds > 0 {
+			time.Sleep(time.Duration(sleepSeconds) * time.Second)
+		} else {
+			break
+		}
+	}
 }
