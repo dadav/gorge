@@ -61,6 +61,7 @@ Flags:
       --import-proxied-releases   add every proxied modules to local store
       --jwt-secret string         jwt secret (default "changeme")
       --jwt-token-path string     jwt token path (default "~/.gorge/token")
+      --modules-scan-sec int      seconds between scans of directory containing all the modules. (default 0 means only scan at startup)
       --modulesdir string         directory containing all the modules (default "~/.gorge/modules")
       --no-cache                  disables the caching functionality
       --port int                  the port to listen to (default 8080)
@@ -113,6 +114,8 @@ fallback-proxy:
 import-proxied-releases: false
 # Path to local modules.
 modulesdir: ~/.gorge/modules
+# Seconds between scans of directory containing all the modules
+modules-scan-sec: 0
 # Disable cache functionality.
 no-cache: false
 # Port to bind the webservice to.
@@ -141,6 +144,7 @@ GORGE_DEV=false
 GORGE_FALLBACK_PROXY=""
 GORGE_IMPORT_PROXIED_RELEASES=false
 GORGE_MODULESDIR=~/.gorge/modules
+GORGE_MODULES_SCAN_SEC=0
 GORGE_NO_CACHE=false
 GORGE_PORT=8080
 GORGE_JWT_SECRET=changeme

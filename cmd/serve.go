@@ -16,10 +16,15 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	config "github.com/dadav/gorge/internal/config"
 	log "github.com/dadav/gorge/internal/log"
@@ -33,6 +38,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 // serveCmd represents the serve command
@@ -82,10 +88,6 @@ You can also enable the caching functionality to speed things up.`,
 			if err != nil {
 				log.Log.Fatal(err)
 			}
-		}
-		err = backend.ConfiguredBackend.LoadModules()
-		if err != nil {
-			log.Log.Fatal(err)
 		}
 
 		if config.ApiVersion == "v3" {
@@ -163,11 +165,62 @@ You can also enable the caching functionality to speed things up.`,
 
 			r.Mount("/", apiRouter)
 
-			log.Log.Infof("Listen on %s:%d", config.Bind, config.Port)
-			if config.TlsKeyPath != "" && config.TlsCertPath != "" {
-				log.Log.Panic(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", config.Bind, config.Port), config.TlsCertPath, config.TlsKeyPath, r))
+			bindPort := fmt.Sprintf("%s:%d", config.Bind, config.Port)
+			log.Log.Infof("Listen on %s", bindPort)
+
+			ctx, restoreDefaultSignalHandling := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+			defer restoreDefaultSignalHandling()
+			g, gCtx := errgroup.WithContext(ctx)
+
+			// if set, continuously check modules directory every ModulesScanSec seconds
+			// otherwise, check only at startup
+			if config.ModulesScanSec > 0 {
+				g.Go(func() error {
+					for {
+						select {
+						case <-gCtx.Done():
+							log.Log.Debugln("Canceling module scan goroutine")
+							return nil
+						case <-time.After(time.Duration(config.ModulesScanSec) * time.Second):
+							if err := backend.ConfiguredBackend.LoadModules(); err != nil {
+								return err
+							}
+						}
+					}
+				})
 			} else {
-				log.Log.Panic(http.ListenAndServe(fmt.Sprintf("%s:%d", config.Bind, config.Port), r))
+				if err := backend.ConfiguredBackend.LoadModules(); err != nil {
+					log.Log.Panic(err)
+				}
+			}
+
+			server := http.Server{Addr: bindPort, Handler: r, BaseContext: func(_ net.Listener) context.Context { return ctx }}
+
+			g.Go(func() error {
+				if config.TlsKeyPath != "" && config.TlsCertPath != "" {
+					if err := server.ListenAndServeTLS(config.TlsCertPath, config.TlsKeyPath); err != http.ErrServerClosed {
+						return err
+					}
+				} else {
+					if err := server.ListenAndServe(); err != http.ErrServerClosed {
+						return err
+					}
+				}
+				return nil
+			})
+
+			g.Go(func() error {
+				<-gCtx.Done()
+
+				log.Log.Debugln("Shutting down server (timeout: 5s)")
+				gracefullCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancelShutdown()
+
+				return server.Shutdown(gracefullCtx)
+			})
+
+			if err := g.Wait(); err != nil {
+				log.Log.Panic(err)
 			}
 		} else {
 			log.Log.Panicf("%s version not supported", config.ApiVersion)
@@ -182,6 +235,7 @@ func init() {
 	serveCmd.Flags().IntVar(&config.Port, "port", 8080, "the port to listen to")
 	serveCmd.Flags().StringVar(&config.Bind, "bind", "127.0.0.1", "host to listen to")
 	serveCmd.Flags().StringVar(&config.ModulesDir, "modulesdir", "~/.gorge/modules", "directory containing all the modules")
+	serveCmd.Flags().IntVar(&config.ModulesScanSec, "modules-scan-sec", 0, "seconds between scans of directory containing all the modules. (default 0 means only scan at startup)")
 	serveCmd.Flags().StringVar(&config.Backend, "backend", "filesystem", "backend to use")
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
 	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional fallback upstream proxy url")
@@ -195,4 +249,18 @@ func init() {
 	serveCmd.Flags().Int64Var(&config.CacheMaxAge, "cache-max-age", 86400, "max number of seconds responses should be cached")
 	serveCmd.Flags().BoolVar(&config.NoCache, "no-cache", false, "disables the caching functionality")
 	serveCmd.Flags().BoolVar(&config.ImportProxiedReleases, "import-proxied-releases", false, "add every proxied modules to local store")
+}
+
+func checkModules(sleepSeconds int) {
+	for {
+		err := backend.ConfiguredBackend.LoadModules()
+		if err != nil {
+			log.Log.Fatal(err)
+		}
+		if sleepSeconds > 0 {
+			time.Sleep(time.Duration(sleepSeconds) * time.Second)
+		} else {
+			break
+		}
+	}
 }

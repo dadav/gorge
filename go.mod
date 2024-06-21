@@ -12,6 +12,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/mod v0.18.0
+	golang.org/x/sync v0.7.0
 )
 
 require (

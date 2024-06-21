@@ -6,6 +6,7 @@ var (
 	Bind                  string
 	Dev                   bool
 	ModulesDir            string
+	ModulesScanSec        int
 	Backend               string
 	CORSOrigins           string
 	FallbackProxyUrl      string
