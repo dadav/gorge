@@ -87,11 +87,7 @@ You can also enable the caching functionality to speed things up.`,
 
 		// if set, continuously check modules directory every ModulesScanSec seconds
 		// otherwise, check only at startup
-		if config.ModulesScanSec > 0 {
-			go checkModules(config.ModulesScanSec)
-		} else {
-			checkModules(config.ModulesScanSec)
-		}
+		go checkModules(config.ModulesScanSec)
 
 		if config.ApiVersion == "v3" {
 			moduleService := v3.NewModuleOperationsApi()
@@ -204,10 +200,8 @@ func init() {
 }
 
 func checkModules(sleepSeconds int) {
-	var err error
-
 	for {
-		err = backend.ConfiguredBackend.LoadModules()
+		err := backend.ConfiguredBackend.LoadModules()
 		if err != nil {
 			log.Log.Fatal(err)
 		}
