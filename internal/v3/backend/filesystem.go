@@ -36,7 +36,9 @@ var _ Backend = (*FilesystemBackend)(nil)
 
 func NewFilesystemBackend(path string) *FilesystemBackend {
 	return &FilesystemBackend{
+		Modules:    map[string]*gen.Module{},
 		ModulesDir: path,
+		Releases:   map[string][]*gen.Release{},
 	}
 }
 
