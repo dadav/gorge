@@ -16,8 +16,9 @@ import (
 )
 
 type ContentHeaders struct {
-	Type     string `json:"type"`
-	Encoding string `json:"encoding"`
+	Type        string `json:"type"`
+	Encoding    string `json:"encoding"`
+	Disposition string `json:"disposition"`
 }
 
 func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler) http.Handler {
@@ -61,8 +62,15 @@ func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler)
 							if err == nil {
 								var contentHeaders ContentHeaders
 								json.Unmarshal(headerBytes, &contentHeaders)
-								w.Header().Add("Content-Type", contentHeaders.Type)
-								w.Header().Add("Content-Encoding", contentHeaders.Encoding)
+								if contentHeaders.Type != "" {
+									w.Header().Add("Content-Type", contentHeaders.Type)
+								}
+								if contentHeaders.Encoding != "" {
+									w.Header().Add("Content-Encoding", contentHeaders.Encoding)
+								}
+								if contentHeaders.Disposition != "" {
+									w.Header().Add("Content-Disposition", contentHeaders.Disposition)
+								}
 							}
 							w.Write(data)
 							return
@@ -82,8 +90,9 @@ func CacheMiddleware(prefixes []string, cacheDir string) func(next http.Handler)
 				}
 
 				contentHeaders := ContentHeaders{
-					Type:     capturedResponseWriter.Header().Get("Content-Type"),
-					Encoding: capturedResponseWriter.Header().Get("Content-Encoding"),
+					Type:        capturedResponseWriter.Header().Get("Content-Type"),
+					Encoding:    capturedResponseWriter.Header().Get("Content-Encoding"),
+					Disposition: capturedResponseWriter.Header().Get("Content-Disposition"),
 				}
 				contentHeadersBytes, err := json.Marshal(contentHeaders)
 				if err == nil {
