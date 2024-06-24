@@ -138,7 +138,7 @@ You can also enable the caching functionality to speed things up.`,
 					r.Use(cachedMiddleware)
 				}
 
-				r.Use(customMiddleware.ProxyFallback(config.FallbackProxyUrl, func(status int) bool {
+				r.Use(customMiddleware.ProxyFallback(strings.Split(config.FallbackProxyUrl, ","), func(status int) bool {
 					return status == http.StatusNotFound
 				},
 					func(r *http.Response) {
