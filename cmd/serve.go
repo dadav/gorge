@@ -49,7 +49,7 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the puppet forge webserver",
 	Long: `Run this command to start serving your own puppet modules.
-You can also enable a fallback proxy to forward the requests to
+You can also enable fallback proxies to forward the requests to
 when you don't have the requested module in your local module
 set yet.
 
@@ -245,7 +245,7 @@ func init() {
 	serveCmd.Flags().IntVar(&config.ModulesScanSec, "modules-scan-sec", 0, "seconds between scans of directory containing all the modules. (default 0 means only scan at startup)")
 	serveCmd.Flags().StringVar(&config.Backend, "backend", "filesystem", "backend to use")
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
-	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional fallback upstream proxy url")
+	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional comma separated list of fallback upstream proxy urls")
 	serveCmd.Flags().BoolVar(&config.Dev, "dev", false, "enables dev mode")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
