@@ -1,9 +1,8 @@
 package middleware
 
 import (
-	"bytes"
-	"io"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 
 	"github.com/dadav/gorge/internal/log"
@@ -30,16 +29,39 @@ func (w *capturedResponseWriter) sendCapturedResponse() {
 	w.ResponseWriter.Write(w.body)
 }
 
-func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response, []byte)) func(next http.Handler) http.Handler {
+func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.URL.Scheme = target.Scheme
+			req.URL.Host = target.Host
+			req.Host = target.Host
+		},
+	}
+}
+
+func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// capture response
 			capturedResponseWriter := &capturedResponseWriter{ResponseWriter: w}
 			next.ServeHTTP(capturedResponseWriter, r)
 
 			if forwardToProxy(capturedResponseWriter.status) {
+				for k := range w.Header() {
+					w.Header().Del(k)
+				}
 				log.Log.Infof("Forwarding request to %s\n", upstreamHost)
-				forwardRequest(w, r, upstreamHost, proxiedResponseCb)
+				u, err := url.Parse(upstreamHost)
+				if err != nil {
+					log.Log.Panic(err)
+				}
+
+				proxy := NewSingleHostReverseProxy(u)
+				proxy.ModifyResponse = func(r *http.Response) error {
+					proxiedResponseCb(r)
+					return nil
+				}
+
+				proxy.ServeHTTP(w, r)
 				return
 			}
 
@@ -47,69 +69,4 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 			capturedResponseWriter.sendCapturedResponse()
 		})
 	}
-}
-
-func forwardRequest(w http.ResponseWriter, r *http.Request, forwardHost string, proxiedResponseCb func(*http.Response, []byte)) {
-	// Create a buffer to store the request body
-	var requestBodyBytes []byte
-	if r.Body != nil {
-		requestBodyBytes, _ = io.ReadAll(r.Body)
-	}
-
-	// Clone the original request
-	forwardUrl, err := url.JoinPath(forwardHost, r.URL.Path)
-	if err != nil {
-		http.Error(w, "Failed to create forwarded request", http.StatusInternalServerError)
-		return
-	}
-
-	forwardedRequest, err := http.NewRequestWithContext(r.Context(), r.Method, forwardUrl, bytes.NewBuffer(requestBodyBytes))
-	if err != nil {
-		http.Error(w, "Failed to create forwarded request", http.StatusInternalServerError)
-		return
-	}
-
-	// Set the parameters
-	forwardedRequest.URL.RawQuery = r.URL.RawQuery
-
-	// Copy headers from the original request
-	forwardedRequest.Header = make(http.Header)
-	for key, values := range r.Header {
-		if key == "Authorization" {
-			continue
-		}
-		for _, value := range values {
-			forwardedRequest.Header.Add(key, value)
-		}
-	}
-
-	// Make the request to the forward host
-	client := http.Client{}
-	resp, err := client.Do(forwardedRequest)
-	if err != nil {
-		http.Error(w, "Failed to forward request", http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Copy the response headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-
-	log.Log.Debugf("Response of proxied request is %d\n", resp.StatusCode)
-
-	// Write the response status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Write the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
-		return
-	}
-	w.Write(body)
-	proxiedResponseCb(resp, body)
 }
