@@ -16,8 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -36,6 +38,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth/v5"
+	"github.com/go-chi/stampede"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -56,10 +59,6 @@ You can also enable the caching functionality to speed things up.`,
 
 		log.Setup(config.Dev)
 
-		config.CacheDir, err = homedir.Expand(config.CacheDir)
-		if err != nil {
-			log.Log.Fatal(err)
-		}
 		config.ModulesDir, err = homedir.Expand(config.ModulesDir)
 		if err != nil {
 			log.Log.Fatal(err)
@@ -131,20 +130,28 @@ You can also enable the caching functionality to speed things up.`,
 
 			if config.FallbackProxyUrl != "" {
 				if !config.NoCache {
-					if _, err := os.Stat(config.CacheDir); err != nil {
-						err = os.MkdirAll(config.CacheDir, os.ModePerm)
-						if err != nil {
-							log.Log.Fatal(err)
-						}
+					customKeyFunc := func(r *http.Request) uint64 {
+						token := r.Header.Get("Authorization")
+						return stampede.StringToHash(r.Method, strings.ToLower(strings.ToLower(token)))
 					}
-					r.Use(customMiddleware.CacheMiddleware(strings.Split(config.CachePrefixes, ","), config.CacheDir))
+					cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
+					r.Use(cachedMiddleware)
 				}
 
 				r.Use(customMiddleware.ProxyFallback(config.FallbackProxyUrl, func(status int) bool {
 					return status == http.StatusNotFound
 				},
-					func(r *http.Response, body []byte) {
+					func(r *http.Response) {
 						if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
+							body, err := io.ReadAll(r.Body)
+							if err != nil {
+								log.Log.Error(err)
+								return
+							}
+
+							// restore the body
+							r.Body = io.NopCloser(bytes.NewBuffer(body))
+
 							release, err := backend.ConfiguredBackend.AddRelease(body)
 							if err != nil {
 								log.Log.Error(err)
@@ -240,7 +247,6 @@ func init() {
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
 	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional fallback upstream proxy url")
 	serveCmd.Flags().BoolVar(&config.Dev, "dev", false, "enables dev mode")
-	serveCmd.Flags().StringVar(&config.CacheDir, "cachedir", "~/.gorge/cache", "cache directory")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
 	serveCmd.Flags().StringVar(&config.JwtTokenPath, "jwt-token-path", "~/.gorge/token", "jwt token path")
