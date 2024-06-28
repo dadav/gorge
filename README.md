@@ -53,7 +53,6 @@ Flags:
       --bind string               host to listen to (default "127.0.0.1")
       --cache-max-age int         max number of seconds responses should be cached (default 86400)
       --cache-prefixes string     url prefixes to cache (default "/v3/files")
-      --cachedir string           cache directory (default "~/.gorge/cache")
       --cors string               allowed cors origins separated by comma (default "*")
       --dev                       enables dev mode
       --fallback-proxy string     optional fallback upstream proxy url
@@ -102,8 +101,6 @@ cache-max-age: 86400
 bind: 127.0.0.1
 # The prefixes of requests to cache responses from. Multiple entries must be separated by comma.
 cache-prefixes: /v3/files
-# The directory to write the cached responses to.
-cachedir: ~/.gorge/cache
 # Value of the `Access-Control-Allow-Origin` header.
 cors: "*"
 # Enables the dev mode.
@@ -138,7 +135,6 @@ GORGE_BACKEND=filesystem
 GORGE_BIND=127.0.0.1
 GORGE_CACHE_MAX_AGE=86400
 GORGE_CACHE_PREFIXES=/v3/files
-GORGE_CACHEDIR=~/.gorge/cache
 GORGE_CORS="*"
 GORGE_DEV=false
 GORGE_FALLBACK_PROXY=""

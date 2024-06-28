@@ -59,10 +59,6 @@ You can also enable the caching functionality to speed things up.`,
 
 		log.Setup(config.Dev)
 
-		config.CacheDir, err = homedir.Expand(config.CacheDir)
-		if err != nil {
-			log.Log.Fatal(err)
-		}
 		config.ModulesDir, err = homedir.Expand(config.ModulesDir)
 		if err != nil {
 			log.Log.Fatal(err)
