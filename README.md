@@ -38,7 +38,7 @@ go install github.com/dadav/gorge@latest
 
 ```bash
 Run this command to start serving your own puppet modules.
-You can also enable a fallback proxy to forward the requests to
+You can also enable one or more fallback proxies to forward the requests to
 when you don't have the requested module in your local module
 set yet.
 
@@ -80,7 +80,7 @@ gorge serve
 # use fallback forge and cache request of modules and files
 gorge serve --fallback-proxy https://forge.puppetlabs.com --cache-prefixes /v3/files,/v3/modules
 
-# use internal forge server and fallback forge and cache request of modules and files
+# first use the internal forge server, then (if failed) the official forge and cache request of modules and files
 gorge serve --fallback-proxy https://internal-forge.example.com,https://forge.puppetlabs.com --cache-prefixes /v3/files,/v3/modules
 ```
 

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/v3/backend"
 	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
@@ -92,7 +91,6 @@ type GetModule500Response struct {
 func (s *ModuleOperationsApi) GetModule(ctx context.Context, moduleSlug string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string) (gen.ImplResponse, error) {
 	module, err := backend.ConfiguredBackend.GetModuleBySlug(moduleSlug)
 	if err != nil {
-		log.Log.Error(err)
 		return gen.Response(
 			http.StatusNotFound,
 			GetModule404Response{

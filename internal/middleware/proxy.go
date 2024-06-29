@@ -46,19 +46,29 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 			next.ServeHTTP(capturedResponseWriter, r)
 
 			if forwardToProxy(capturedResponseWriter.status) {
-				for k := range w.Header() {
-					w.Header().Del(k)
-				}
 				log.Log.Infof("Forwarding request to %s\n", upstreamHost)
 				u, err := url.Parse(upstreamHost)
 				if err != nil {
-					log.Log.Panic(err)
+					log.Log.Error(err)
+					capturedResponseWriter.sendCapturedResponse()
+					return
+				}
+
+				for k := range w.Header() {
+					w.Header().Del(k)
 				}
 
 				proxy := NewSingleHostReverseProxy(u)
+
 				proxy.ModifyResponse = func(r *http.Response) error {
 					proxiedResponseCb(r)
 					return nil
+				}
+
+				// if some error occurs, return the original content
+				proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+					log.Log.Error(err)
+					capturedResponseWriter.sendCapturedResponse()
 				}
 
 				proxy.ServeHTTP(w, r)

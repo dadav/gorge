@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -132,35 +133,40 @@ You can also enable the caching functionality to speed things up.`,
 				if !config.NoCache {
 					customKeyFunc := func(r *http.Request) uint64 {
 						token := r.Header.Get("Authorization")
-						return stampede.StringToHash(r.Method, strings.ToLower(strings.ToLower(token)))
+						return stampede.StringToHash(r.Method, strings.ToLower(token))
 					}
 					cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
 					r.Use(cachedMiddleware)
 				}
 
-				r.Use(customMiddleware.ProxyFallback(strings.Split(config.FallbackProxyUrl, ","), func(status int) bool {
-					return status == http.StatusNotFound
-				},
-					func(r *http.Response) {
-						if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
-							body, err := io.ReadAll(r.Body)
-							if err != nil {
-								log.Log.Error(err)
-								return
-							}
+				proxies := strings.Split(config.FallbackProxyUrl, ",")
+				slices.Reverse(proxies)
 
-							// restore the body
-							r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-							release, err := backend.ConfiguredBackend.AddRelease(body)
-							if err != nil {
-								log.Log.Error(err)
-								return
-							}
-							log.Log.Infof("Imported release %s\n", release.Slug)
-						}
+				for _, proxy := range proxies {
+					r.Use(customMiddleware.ProxyFallback(proxy, func(status int) bool {
+						return status == http.StatusNotFound
 					},
-				))
+						func(r *http.Response) {
+							if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
+								body, err := io.ReadAll(r.Body)
+								if err != nil {
+									log.Log.Error(err)
+									return
+								}
+
+								// restore the body
+								r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+								release, err := backend.ConfiguredBackend.AddRelease(body)
+								if err != nil {
+									log.Log.Error(err)
+									return
+								}
+								log.Log.Infof("Imported release %s\n", release.Slug)
+							}
+						},
+					))
+				}
 			}
 
 			apiRouter := openapi.NewRouter(
