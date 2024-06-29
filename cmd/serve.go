@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -49,7 +50,7 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the puppet forge webserver",
 	Long: `Run this command to start serving your own puppet modules.
-You can also enable a fallback proxy to forward the requests to
+You can also enable fallback proxies to forward the requests to
 when you don't have the requested module in your local module
 set yet.
 
@@ -132,35 +133,40 @@ You can also enable the caching functionality to speed things up.`,
 				if !config.NoCache {
 					customKeyFunc := func(r *http.Request) uint64 {
 						token := r.Header.Get("Authorization")
-						return stampede.StringToHash(r.Method, strings.ToLower(strings.ToLower(token)))
+						return stampede.StringToHash(r.Method, strings.ToLower(token))
 					}
 					cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
 					r.Use(cachedMiddleware)
 				}
 
-				r.Use(customMiddleware.ProxyFallback(config.FallbackProxyUrl, func(status int) bool {
-					return status == http.StatusNotFound
-				},
-					func(r *http.Response) {
-						if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
-							body, err := io.ReadAll(r.Body)
-							if err != nil {
-								log.Log.Error(err)
-								return
-							}
+				proxies := strings.Split(config.FallbackProxyUrl, ",")
+				slices.Reverse(proxies)
 
-							// restore the body
-							r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-							release, err := backend.ConfiguredBackend.AddRelease(body)
-							if err != nil {
-								log.Log.Error(err)
-								return
-							}
-							log.Log.Infof("Imported release %s\n", release.Slug)
-						}
+				for _, proxy := range proxies {
+					r.Use(customMiddleware.ProxyFallback(proxy, func(status int) bool {
+						return status == http.StatusNotFound
 					},
-				))
+						func(r *http.Response) {
+							if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
+								body, err := io.ReadAll(r.Body)
+								if err != nil {
+									log.Log.Error(err)
+									return
+								}
+
+								// restore the body
+								r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+								release, err := backend.ConfiguredBackend.AddRelease(body)
+								if err != nil {
+									log.Log.Error(err)
+									return
+								}
+								log.Log.Infof("Imported release %s\n", release.Slug)
+							}
+						},
+					))
+				}
 			}
 
 			apiRouter := openapi.NewRouter(
@@ -245,7 +251,7 @@ func init() {
 	serveCmd.Flags().IntVar(&config.ModulesScanSec, "modules-scan-sec", 0, "seconds between scans of directory containing all the modules. (default 0 means only scan at startup)")
 	serveCmd.Flags().StringVar(&config.Backend, "backend", "filesystem", "backend to use")
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
-	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional fallback upstream proxy url")
+	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional comma separated list of fallback upstream proxy urls")
 	serveCmd.Flags().BoolVar(&config.Dev, "dev", false, "enables dev mode")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
