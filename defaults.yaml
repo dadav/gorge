@@ -1,0 +1,35 @@
+---
+# The forge api version to use. Currently only v3 is supported.
+api-version: v3
+# The backend type to use. Currently only filesystem is supported.
+backend: filesystem
+# Max seconds to keep the cached responses.
+cache-max-age: 86400
+# The host to bind the webservice to.
+bind: 127.0.0.1
+# The prefixes of requests to cache responses from. Multiple entries must be separated by comma.
+cache-prefixes: /v3/files
+# Value of the `Access-Control-Allow-Origin` header.
+cors: "*"
+# Enables the dev mode.
+dev: false
+# List of comma separated upstream forge(s) to use when local requests return 404
+fallback-proxy:
+# Import proxied modules into local backend.
+import-proxied-releases: false
+# Path to local modules.
+modulesdir: ~/.gorge/modules
+# Seconds between scans of directory containing all the modules
+modules-scan-sec: 0
+# Disable cache functionality.
+no-cache: false
+# Port to bind the webservice to.
+port: 8080
+# The jwt secret used in the protected endpoint validation
+jwt-secret: changeme
+# The path to write the jwt token to
+jwt-token-path: ~/.gorge/token
+# Path to tls cert file
+tls-cert: ""
+# Path to tls key file
+tls-key: ""

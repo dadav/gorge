@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=values.schema.json
+---
+# @schema
+# type: "integer"
+# @schema
+# -- Number of pods
+replicaCount: 1
+
+# @schema
+# type: "boolean"
+# @schema
+# -- Enables openshift mode (routes)
+openshift: false
+
+# -- Configure persistency
+persistence:
+  # -- Toggle persistency on / off
+  enabled: true
+  # -- The storageClass to use in the pvc
+  storageClass: ""
+  # -- The size to request in the pvc
+  size: 1Gi
+
+# -- Image related options
+image:
+  # @schema
+  # type: string
+  # @schema
+  # -- Registry to use.
+  registry: ghcr.io
+  # @schema
+  # type: string
+  # required: true
+  # @schema
+  # -- Repo to use.
+  repository: dadav/gorge
+  # @schema
+  # type: string
+  # @schema
+  # -- Sets the pull policy.
+  pullPolicy: IfNotPresent
+  # @schema
+  # type: string
+  # @schema
+  # -- Image tag to use. If unset, latest will be used.
+  tag: ""
+
+# @schema
+# type: array
+# items:
+#   type: object
+#   properties:
+#     url:
+#       type: string
+#       required: true
+#     username:
+#       type: string
+#       required: true
+#     password:
+#       type: string
+#       required: true
+# @schema
+# -- Optional pullsecrets required to get the gorge image.
+imagePullSecrets: []
+
+# -- ServiceAccount related options
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.
+  name: "gorge"
+
+# -- Annotations used in the pods
+podAnnotations: {}
+
+# -- Container securityContexts
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# -- Ingress / Route related options
+ingress:
+  # -- On/Off toggle
+  enabled: false
+  # -- Ingress className, will be ignored if openshift=true
+  className: ""
+  # -- Ingress/route annotations
+  annotations: {}
+  # -- Hostname
+  host: foo.example.com
+
+
+resources:
+  requests:
+    # @schema
+    # oneOf:
+    #   - type: "integer"
+    #   - type: "string"
+    #     pattern: ^\d+m$
+    # @schema
+    # -- Minimum required cpu
+    cpu: 100m
+    # @schema
+    # type: "string"
+    # pattern: ^\d+[MTPG]i$
+    # @schema
+    # -- Minimum required memory
+    memory: 128Mi
+  limits:
+    # @schema
+    # oneOf:
+    #   - type: "integer"
+    #   - type: "string"
+    #     pattern: ^\d+m$
+    #   - type: "null"
+    # @schema
+    # -- Maximum cpu
+    cpu:
+    # @schema
+    # type: "string"
+    # pattern: ^\d+[MTPG]i$
+    # @schema
+    # -- Maximum memory
+    memory: 128Mi
+
+# -- Select deployment nodes
+nodeSelector: {}
+
+# -- Add tolerations for nodes
+tolerations: []
+
+# -- Configure node affinity
+affinity: {}

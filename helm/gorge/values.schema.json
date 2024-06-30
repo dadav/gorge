@@ -1,0 +1,302 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "affinity": {
+      "additionalProperties": false,
+      "description": "Configure node affinity",
+      "title": "affinity",
+      "type": "object"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "title": "global",
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Sets the pull policy.",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "registry": {
+          "default": "ghcr.io",
+          "description": "Registry to use.",
+          "title": "registry",
+          "type": "string"
+        },
+        "repository": {
+          "default": "dadav/gorge",
+          "description": "Repo to use.",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Image tag to use. If unset, latest will be used.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "description": "Image related options",
+      "title": "image",
+      "type": "object",
+      "required": [
+        "repository"
+      ]
+    },
+    "imagePullSecrets": {
+      "items": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "username",
+          "password"
+        ]
+      },
+      "description": "Optional pullsecrets required to get the gorge image.",
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "ingress": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": false,
+          "description": "Ingress/route annotations",
+          "title": "annotations",
+          "type": "object"
+        },
+        "className": {
+          "default": "",
+          "description": "Ingress className, will be ignored if openshift=true",
+          "title": "className",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "description": "On/Off toggle",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "host": {
+          "default": "foo.example.com",
+          "description": "Hostname",
+          "title": "host",
+          "type": "string"
+        }
+      },
+      "description": "Ingress / Route related options",
+      "title": "ingress",
+      "type": "object",
+      "required": [
+        "enabled",
+        "className",
+        "annotations",
+        "host"
+      ]
+    },
+    "nodeSelector": {
+      "additionalProperties": false,
+      "description": "Select deployment nodes",
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "openshift": {
+      "default": false,
+      "description": "Enables openshift mode (routes)",
+      "title": "openshift",
+      "type": "boolean"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Toggle persistency on / off",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "size": {
+          "default": "1Gi",
+          "description": "The size to request in the pvc",
+          "title": "size",
+          "type": "string"
+        },
+        "storageClass": {
+          "default": "",
+          "description": "The storageClass to use in the pvc",
+          "title": "storageClass",
+          "type": "string"
+        }
+      },
+      "description": "Configure persistency",
+      "title": "persistence",
+      "type": "object",
+      "required": [
+        "enabled",
+        "storageClass",
+        "size"
+      ]
+    },
+    "podAnnotations": {
+      "additionalProperties": false,
+      "description": "Annotations used in the pods",
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "replicaCount": {
+      "default": 1,
+      "description": "yaml-language-server: $schema=values.schema.json\nNumber of pods",
+      "title": "replicaCount",
+      "type": "integer"
+    },
+    "resources": {
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "default": "",
+              "description": "Maximum cpu",
+              "title": "cpu",
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "pattern": "^\\d+m$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "memory": {
+              "default": "128Mi",
+              "pattern": "^\\d+[MTPG]i$",
+              "description": "Maximum memory",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "default": "100m",
+              "description": "Minimum required cpu",
+              "title": "cpu",
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "pattern": "^\\d+m$",
+                  "type": "string"
+                }
+              ]
+            },
+            "memory": {
+              "default": "128Mi",
+              "pattern": "^\\d+[MTPG]i$",
+              "description": "Minimum required memory",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "title": "resources",
+      "type": "object",
+      "required": [
+        "requests",
+        "limits"
+      ]
+    },
+    "securityContext": {
+      "additionalProperties": false,
+      "description": "Container securityContexts",
+      "title": "securityContext",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": false,
+          "description": "Annotations to add to the service account",
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": true,
+          "description": "Automatically mount a ServiceAccount's API credentials?",
+          "title": "automount",
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "description": "Specifies whether a service account should be created",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "gorge",
+          "description": "The name of the service account to use.",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "description": "ServiceAccount related options",
+      "title": "serviceAccount",
+      "type": "object",
+      "required": [
+        "create",
+        "automount",
+        "annotations",
+        "name"
+      ]
+    },
+    "tolerations": {
+      "items": {},
+      "description": "Add tolerations for nodes",
+      "title": "tolerations",
+      "type": "array"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "persistence",
+    "image",
+    "serviceAccount",
+    "podAnnotations",
+    "securityContext",
+    "ingress",
+    "resources",
+    "nodeSelector",
+    "tolerations",
+    "affinity"
+  ]
+}

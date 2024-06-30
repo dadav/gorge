@@ -179,6 +179,18 @@ You can also enable the caching functionality to speed things up.`,
 
 			r.Mount("/", apiRouter)
 
+			r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"message": "ok"}`))
+			})
+
+			r.Get("/livez", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"message": "ok"}`))
+			})
+
 			bindPort := fmt.Sprintf("%s:%d", config.Bind, config.Port)
 			log.Log.Infof("Listen on %s", bindPort)
 
