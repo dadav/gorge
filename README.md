@@ -23,7 +23,7 @@ send them to incoming requests from puppet or r10k.
 If the module is not found locally it will forward to request (if configured) to an upstream
 forge.
 The result of this upstream request will be cached for one day (if not disabled with `--no-cache`).
-Usually the request end with the module tarball being downloaded. You can set `--import-proxied-releases`
+Usually the request results in a module tarball being downloaded. You can set `--import-proxied-releases`
 to automatically import them in your `~/.gorge/modules` directory.
 
 ## 🌹 Installation
