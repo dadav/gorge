@@ -129,15 +129,16 @@ You can also enable the caching functionality to speed things up.`,
 				}
 			}
 
-			if config.FallbackProxyUrl != "" {
-				if !config.NoCache {
-					customKeyFunc := func(r *http.Request) uint64 {
-						token := r.Header.Get("Authorization")
-						return stampede.StringToHash(r.Method, strings.ToLower(token))
-					}
-					cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
-					r.Use(cachedMiddleware)
+			if !config.NoCache {
+				customKeyFunc := func(r *http.Request) uint64 {
+					token := r.Header.Get("Authorization")
+					return stampede.StringToHash(r.Method, strings.ToLower(token))
 				}
+				cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
+				r.Use(cachedMiddleware)
+			}
+
+			if config.FallbackProxyUrl != "" {
 
 				proxies := strings.Split(config.FallbackProxyUrl, ",")
 				slices.Reverse(proxies)
