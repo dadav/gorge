@@ -34,8 +34,8 @@
           "type": "string"
         },
         "tag": {
-          "default": "",
-          "description": "Image tag to use. If unset, latest will be used.",
+          "default": "latest",
+          "description": "Image tag to use.",
           "title": "tag",
           "type": "string"
         }

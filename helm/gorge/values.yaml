@@ -42,8 +42,8 @@ image:
   # @schema
   # type: string
   # @schema
-  # -- Image tag to use. If unset, latest will be used.
-  tag: ""
+  # -- Image tag to use.
+  tag: latest
 
 # @schema
 # type: array
