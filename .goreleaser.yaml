@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
-version: 1
+version: 2
 
 before:
   hooks:
@@ -31,6 +31,41 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+
+nfpms:
+  - homepage: https://github.com/dadav/gorge
+    maintainer: dadav <dadav@protonmail.com>
+    description: |-
+      Gorge is a puppet forge implementation in go.
+    license: Apache 2.0
+    formats:
+      - apk
+      - deb
+      - rpm
+      - termux.deb
+      - archlinux
+    provides:
+      - gorge
+    contents:
+      - src: gorge.service
+        dst: /usr/lib/systemd/system/gorge.service
+      - src: defaults.yaml
+        dst: /etc/gorge.yaml
+        type: "config|noreplace"
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    image_templates:
+      - 'ghcr.io/dadav/gorge:{{ .Tag }}'
+      - 'ghcr.io/dadav/gorge:latest'
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.authors=dadav"
+      - "--label=org.opencontainers.image.url=https://github.com/dadav/gorge"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
 
 changelog:
   sort: asc

@@ -1,0 +1,25 @@
+[Unit]
+Description=Gorge is a puppet forge server written in Go
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/gorge --config /etc/gorge.yaml serve
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+DevicePolicy=closed
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+ProtectClock=yes
+ProtectHostname=yes
+PrivateUsers=yes
+
+[Install]
+WantedBy=multi-user.target
