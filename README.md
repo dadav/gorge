@@ -34,6 +34,43 @@ Via `go install`:
 go install github.com/dadav/gorge@latest
 ```
 
+Via `tarball`:
+
+```bash
+wget https://github.com/dadav/gorge/releases/download/0.4.2-alpha/gorge_0.4.2-alpha_Linux_x86_64.tar.gz
+sudo tar xf gorge_0.4.2-alpha_Linux_x86_64.tar.gz -C /usr/local/bin/ gorge
+```
+
+Via `container image`:
+
+```bash
+podman run --rm -p 8080:8080 ghcr.io/dadav/gorge:latest
+```
+
+Via various package types:
+
+```bash
+# rpm
+wget https://github.com/dadav/gorge/releases/download/0.4.2-alpha/gorge_0.4.2-alpha_linux_amd64.rpm
+sudo yum localinstall gorge_0.4.2-alpha_linux_amd64.rpm
+
+# deb
+wget https://github.com/dadav/gorge/releases/download/0.4.2-alpha/gorge_0.4.2-alpha_linux_amd64.deb
+sudo apt install gorge_0.4.2-alpha_linux_amd64.deb
+
+# apk
+wget https://github.com/dadav/gorge/releases/download/0.4.2-alpha/gorge_0.4.2-alpha_linux_amd64.apk
+sudo apk add --allow-untrusted gorge_0.4.2-alpha_linux_amd64.apk
+```
+
+Via `helm`:
+
+```bash
+git clone https://github.com/dadav/gorge.git
+cd gorge/helm/gorge
+helm install --namespace gorge --create-namespace gorge .
+```
+
 ## 💎 Usage
 
 ```bash
@@ -70,6 +107,23 @@ Flags:
 Global Flags:
       --config string   config file (default is $HOME/.gorge.yaml)
 ```
+
+### ⛳ Autostart
+
+You can use [gorge.service](./gorge.service) to integrate gorge into your systemd autostart.
+
+The required steps are:
+
+```bash
+wget https://raw.githubusercontent.com/dadav/gorge/main/gorge.service
+wget https://raw.githubusercontent.com/dadav/gorge/main/defaults.yaml
+sudo mv gorge.service /etc/systemd/system/gorge.service
+sudo mv defaults.yaml /etc/gorge.yaml
+sudo systemctl daemon-reload
+sudo systemctl enable --now gorge.service
+```
+
+If you've installed gorge as a package (rpm, deb, apk), the required files should already be there.
 
 ## 🐂 Examples
 
