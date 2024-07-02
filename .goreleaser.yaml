@@ -74,3 +74,4 @@ changelog:
       - '^docs:'
       - '^test:'
       - '^chore:'
+      - '^Merge'

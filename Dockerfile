@@ -1,10 +1,9 @@
-FROM ubuntu:latest as user_stage
-RUN useradd -u 10001 gorge
-
-FROM scratch
-ENV HOME /home/gorge
-USER 10001
+FROM alpine:3.20
+RUN adduser -k /dev/null -u 10001 -D gorge \
+  && chgrp 0 /home/gorge \
+  && chmod -R g+rwX /home/gorge
 COPY gorge /
-COPY --from=user_stage /etc/passwd /etc/passwd
+USER 10001
+VOLUME [ "/home/gorge" ]
 ENTRYPOINT ["/gorge"]
-CMD ["serve"]
+CMD [ "serve" ]
