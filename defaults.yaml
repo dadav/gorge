@@ -1,4 +1,8 @@
 ---
+# Set uid of process to this users uid
+user: ""
+# Set gid of process to this groups gid
+group: ""
 # The forge api version to use. Currently only v3 is supported.
 api-version: v3
 # The backend type to use. Currently only filesystem is supported.
@@ -13,6 +17,8 @@ cache-prefixes: /v3/files
 cors: "*"
 # Enables the dev mode.
 dev: false
+# Drop privileges if running as root (user & group options must be set)
+drop-privileges: false
 # List of comma separated upstream forge(s) to use when local requests return 404
 fallback-proxy:
 # Import proxied modules into local backend.
