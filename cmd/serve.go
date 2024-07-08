@@ -18,13 +18,16 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +35,7 @@ import (
 	config "github.com/dadav/gorge/internal/config"
 	log "github.com/dadav/gorge/internal/log"
 	customMiddleware "github.com/dadav/gorge/internal/middleware"
+	"github.com/dadav/gorge/internal/utils"
 	v3 "github.com/dadav/gorge/internal/v3/api"
 	backend "github.com/dadav/gorge/internal/v3/backend"
 	openapi "github.com/dadav/gorge/pkg/gen/v3/openapi"
@@ -40,7 +44,6 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/stampede"
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -60,19 +63,19 @@ You can also enable the caching functionality to speed things up.`,
 
 		log.Setup(config.Dev)
 
-		config.ModulesDir, err = homedir.Expand(config.ModulesDir)
+		config.ModulesDir, err = utils.ExpandTilde(config.ModulesDir)
 		if err != nil {
 			log.Log.Fatal(err)
 		}
-		config.TlsCertPath, err = homedir.Expand(config.TlsCertPath)
+		config.TlsCertPath, err = utils.ExpandTilde(config.TlsCertPath)
 		if err != nil {
 			log.Log.Fatal(err)
 		}
-		config.TlsKeyPath, err = homedir.Expand(config.TlsKeyPath)
+		config.TlsKeyPath, err = utils.ExpandTilde(config.TlsKeyPath)
 		if err != nil {
 			log.Log.Fatal(err)
 		}
-		config.JwtTokenPath, err = homedir.Expand(config.JwtTokenPath)
+		config.JwtTokenPath, err = utils.ExpandTilde(config.JwtTokenPath)
 		if err != nil {
 			log.Log.Fatal(err)
 		}
@@ -87,6 +90,31 @@ You can also enable the caching functionality to speed things up.`,
 			err = os.MkdirAll(config.ModulesDir, os.ModePerm)
 			if err != nil {
 				log.Log.Fatal(err)
+			}
+			if config.DropPrivileges && utils.IsRoot() {
+				uid, err := strconv.Atoi(config.User)
+				if err != nil {
+					u, err := user.Lookup(config.User)
+					if err != nil {
+						log.Log.Fatal(err)
+					}
+					uid, err = strconv.Atoi(u.Uid)
+					if err != nil {
+						log.Log.Fatal(err)
+					}
+				}
+				gid, err := strconv.Atoi(config.Group)
+				if err != nil {
+					g, err := user.LookupGroup(config.Group)
+					if err != nil {
+						log.Log.Fatal(err)
+					}
+					gid, err = strconv.Atoi(g.Gid)
+					if err != nil {
+						log.Log.Fatal(err)
+					}
+				}
+				os.Chown(config.ModulesDir, uid, gid)
 			}
 		}
 
@@ -119,14 +147,12 @@ You can also enable the caching functionality to speed things up.`,
 					return r.Method != "GET"
 				}))
 
-				if _, err = os.Stat(config.JwtTokenPath); err != nil {
-					_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user": "admin"})
-					err = os.WriteFile(config.JwtTokenPath, []byte(tokenString), 0400)
-					if err != nil {
-						log.Log.Fatal(err)
-					}
-					log.Log.Infof("JWT token was written to %s\n", config.JwtTokenPath)
+				_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user": "admin"})
+				err = os.WriteFile(config.JwtTokenPath, []byte(tokenString), 0400)
+				if err != nil {
+					log.Log.Fatal(err)
 				}
+				log.Log.Infof("JWT token was written to %s", config.JwtTokenPath)
 			}
 
 			if !config.NoCache {
@@ -139,7 +165,6 @@ You can also enable the caching functionality to speed things up.`,
 			}
 
 			if config.FallbackProxyUrl != "" {
-
 				proxies := strings.Split(config.FallbackProxyUrl, ",")
 				slices.Reverse(proxies)
 
@@ -191,9 +216,6 @@ You can also enable the caching functionality to speed things up.`,
 				w.Write([]byte(`{"message": "ok"}`))
 			})
 
-			bindPort := fmt.Sprintf("%s:%d", config.Bind, config.Port)
-			log.Log.Infof("Listen on %s", bindPort)
-
 			ctx, restoreDefaultSignalHandling := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer restoreDefaultSignalHandling()
 			g, gCtx := errgroup.WithContext(ctx)
@@ -220,15 +242,49 @@ You can also enable the caching functionality to speed things up.`,
 				}
 			}
 
-			server := http.Server{Addr: bindPort, Handler: r, BaseContext: func(_ net.Listener) context.Context { return ctx }}
+			bindPort := fmt.Sprintf("%s:%d", config.Bind, config.Port)
+			listener, err := net.Listen("tcp", bindPort)
+			if err != nil {
+				log.Log.Fatal(err)
+			}
+			log.Log.Infof("Listen on %s", bindPort)
+
+			server := http.Server{Handler: r, BaseContext: func(_ net.Listener) context.Context { return ctx }}
+			wantTLS := config.TlsKeyPath != "" && config.TlsCertPath != ""
+
+			if wantTLS {
+				certificate, err := os.ReadFile(config.TlsCertPath)
+				if err != nil {
+					log.Log.Fatal(err)
+				}
+				key, err := os.ReadFile(config.TlsKeyPath)
+				if err != nil {
+					log.Log.Fatal(err)
+				}
+				cert, err := tls.X509KeyPair(certificate, key)
+				if err != nil {
+					log.Log.Fatal(err)
+				}
+				tlsConfig := &tls.Config{
+					Certificates: []tls.Certificate{cert},
+				}
+				server.TLSConfig = tlsConfig
+			}
+
+			if config.DropPrivileges && utils.IsRoot() {
+				log.Log.Infof("Give control to user %s and group %s", config.User, config.Group)
+				if err = utils.DropPrivileges(config.User, config.Group); err != nil {
+					log.Log.Fatal(err)
+				}
+			}
 
 			g.Go(func() error {
-				if config.TlsKeyPath != "" && config.TlsCertPath != "" {
-					if err := server.ListenAndServeTLS(config.TlsCertPath, config.TlsKeyPath); err != http.ErrServerClosed {
+				if wantTLS {
+					if err := server.ServeTLS(listener, "", ""); err != http.ErrServerClosed {
 						return err
 					}
 				} else {
-					if err := server.ListenAndServe(); err != http.ErrServerClosed {
+					if err := server.Serve(listener); err != http.ErrServerClosed {
 						return err
 					}
 				}
@@ -257,6 +313,8 @@ You can also enable the caching functionality to speed things up.`,
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
+	serveCmd.Flags().StringVar(&config.User, "user", "", "give control to this user or uid (requires root)")
+	serveCmd.Flags().StringVar(&config.Group, "group", "", "give control to this group or gid (requires root)")
 	serveCmd.Flags().StringVar(&config.ApiVersion, "api-version", "v3", "the forge api version to use")
 	serveCmd.Flags().IntVar(&config.Port, "port", 8080, "the port to listen to")
 	serveCmd.Flags().StringVar(&config.Bind, "bind", "127.0.0.1", "host to listen to")
@@ -266,6 +324,7 @@ func init() {
 	serveCmd.Flags().StringVar(&config.CORSOrigins, "cors", "*", "allowed cors origins separated by comma")
 	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional comma separated list of fallback upstream proxy urls")
 	serveCmd.Flags().BoolVar(&config.Dev, "dev", false, "enables dev mode")
+	serveCmd.Flags().BoolVar(&config.DropPrivileges, "drop-privileges", false, "drops privileges to the given user/group")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
 	serveCmd.Flags().StringVar(&config.JwtTokenPath, "jwt-token-path", "~/.gorge/token", "jwt token path")

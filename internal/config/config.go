@@ -1,10 +1,13 @@
 package config
 
 var (
+	User                  string
+	Group                 string
 	ApiVersion            string
 	Port                  int
 	Bind                  string
 	Dev                   bool
+	DropPrivileges        bool
 	ModulesDir            string
 	ModulesScanSec        int
 	Backend               string

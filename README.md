@@ -92,7 +92,9 @@ Flags:
       --cache-prefixes string     url prefixes to cache (default "/v3/files")
       --cors string               allowed cors origins separated by comma (default "*")
       --dev                       enables dev mode
+      --drop-privileges           drops privileges to the given user/group
       --fallback-proxy string     optional comma separated list of fallback upstream proxy urls
+      --group string              give control to this group or gid (requires root)
   -h, --help                      help for serve
       --import-proxied-releases   add every proxied modules to local store
       --jwt-secret string         jwt secret (default "changeme")
@@ -103,6 +105,7 @@ Flags:
       --port int                  the port to listen to (default 8080)
       --tls-cert string           path to tls cert file
       --tls-key string            path to tls key file
+      --user string               give control to this user or uid (requires root)
 
 Global Flags:
       --config string   config file (default is $HOME/.gorge.yaml)
@@ -148,6 +151,10 @@ Via file (`$HOME/.config/gorge.yaml` or `./gorge.yaml`):
 
 ```yaml
 ---
+# Set uid of process to this users uid
+user: ""
+# Set gid of process to this groups gid
+group: ""
 # The forge api version to use. Currently only v3 is supported.
 api-version: v3
 # The backend type to use. Currently only filesystem is supported.
@@ -162,6 +169,8 @@ cache-prefixes: /v3/files
 cors: "*"
 # Enables the dev mode.
 dev: false
+# Drop privileges if running as root (user & group options must be set)
+drop-privileges: false
 # List of comma separated upstream forge(s) to use when local requests return 404
 fallback-proxy:
 # Import proxied modules into local backend.
@@ -187,6 +196,8 @@ tls-key: ""
 Via environment:
 
 ```bash
+GORGE_USER=""
+GORGE_GROUP=""
 GORGE_API_VERSION=v3
 GORGE_BACKEND=filesystem
 GORGE_BIND=127.0.0.1
@@ -194,6 +205,7 @@ GORGE_CACHE_MAX_AGE=86400
 GORGE_CACHE_PREFIXES=/v3/files
 GORGE_CORS="*"
 GORGE_DEV=false
+GORGE_DROP_PRIVILEGES=false
 GORGE_FALLBACK_PROXY=""
 GORGE_IMPORT_PROXIED_RELEASES=false
 GORGE_MODULESDIR=~/.gorge/modules
@@ -217,6 +229,13 @@ in the Authorization header like this:
 `Authorization: Bearer <token>`
 
 In dev mode these security checks are disabled.
+
+### 💧 Dropping privileges
+
+There is no need to run gorge as root. But if you still want to do it, be sure to
+use the `--drop-privileges` option combined with `--user` and `--group`. You could
+set these to `www-data`. It will ensure gorge won't keep running as root, after the
+required root actions are done.
 
 ## 🐝 Development
 
