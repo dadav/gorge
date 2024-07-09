@@ -230,12 +230,29 @@ in the Authorization header like this:
 
 In dev mode these security checks are disabled.
 
+### 💊 Using privileged ports (<1024)
+
+If you want to use a port smaller 1024, consider using linux capabilities instead
+of running gorge as root.
+
+```bash
+# add capability
+sudo setcap 'cap_net_bind_service=+ep' /usr/bin/gorge
+
+# run gorge
+gorge serve --port 80
+```
+
 ### 💧 Dropping privileges
 
 There is no need to run gorge as root. But if you still want to do it, be sure to
 use the `--drop-privileges` option combined with `--user` and `--group`. You could
 set these to `www-data`. It will ensure gorge won't keep running as root, after the
 required root actions are done.
+
+```bash
+sudo gorge serve --drop-privileges --user www-data --group www-data --port 80
+```
 
 ## 🐝 Development
 
