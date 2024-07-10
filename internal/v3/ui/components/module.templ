@@ -1,0 +1,57 @@
+package components
+
+import (
+	"fmt"
+	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+)
+
+templ ModuleView(module *gen.Module) {
+	<h3>{ module.Name }</h3>
+	<table>
+		<tbody>
+			<tr>
+				<td>
+					Name
+				</td>
+				<td>
+					{ module.Name }
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Author
+				</td>
+				<td>
+					<a href={ templ.URL(fmt.Sprintf("/authors/%s", module.Owner.Slug)) }>{ module.Owner.Username }</a>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Versions
+				</td>
+				<td>
+					<a href={ templ.URL(fmt.Sprintf("/modules/%s/%s", module.Slug, module.CurrentRelease.Version)) }>{ module.CurrentRelease.Version } (latest)</a>
+					for _, release := range module.Releases {
+						if module.CurrentRelease.Version != release.Version {
+							<br/>
+							<a href={ templ.URL(fmt.Sprintf("/modules/%s/%s", module.Slug, release.Version)) }>{ release.Version }</a>
+						}
+					}
+				</td>
+			</tr>
+			if len(deps(module.CurrentRelease.Metadata)) > 0 {
+				<tr>
+					<td>
+						Dependencies
+					</td>
+					<td>
+						for _, dep := range deps(module.CurrentRelease.Metadata) {
+							<a href={ templ.URL(fmt.Sprintf("/modules/%s", normalize(dep.Name))) }>{ dep.Name } { dep.VersionRequirement }</a>
+							<br/>
+						}
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}

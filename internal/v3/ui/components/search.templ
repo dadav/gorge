@@ -1,0 +1,52 @@
+package components
+
+import (
+	"fmt"
+	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+)
+
+templ SearchView(query string, modules []*gen.Module) {
+	<div class="search">
+		<img src="/assets/logo.png" width="400"/>
+		<br/>
+		<input
+			id="query"
+			class="form-control"
+			type="search"
+			name="query"
+			value={ query }
+			placeholder="Name, author, version..."
+			hx-get="/search"
+			hx-params="*"
+			hx-trigger="input changed delay:500ms, search"
+			hx-target="#search-results"
+			hx-select="#search-results"
+			hx-swap="outerHTML"
+			hx-replace-url="true"
+		/>
+		<table class="table">
+			<thead>
+				<tr>
+					<th scope="col">Module</th>
+					<th scope="col">Author</th>
+					<th scope="col">Version</th>
+				</tr>
+			</thead>
+			<tbody id="search-results">
+				if len(modules) > 0 {
+					for _, module := range modules {
+						@ModuleToTableRow(module)
+					}
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ ModuleToTableRow(module *gen.Module) {
+	<tr>
+		<td><a href={ templ.URL(fmt.Sprintf("/modules/%s", module.Slug)) }>{ module.Name }</a></td>
+		<td><a href={ templ.URL(fmt.Sprintf("/authors/%s", module.Owner.Slug)) }>{ module.Owner.Username }</a></td>
+		<td>{ module.CurrentRelease.Version }</td>
+	</tr>
+}
