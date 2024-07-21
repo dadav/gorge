@@ -1,9 +1,13 @@
 package components
 
-import gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+import (
+	"fmt"
+	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+)
 
 templ AuthorView(modules []*gen.Module) {
 	<h3>{ modules[0].Owner.Username }</h3>
+	<h4>Modules</h4>
 	<table>
 		<thead>
 			<tr>
@@ -15,10 +19,10 @@ templ AuthorView(modules []*gen.Module) {
 			for _, module := range modules {
 				<tr>
 					<td>
-						{ module.Name }
+						<a href={ templ.URL(fmt.Sprintf("/modules/%s", module.Slug)) }>{ module.Name }</a>
 					</td>
 					<td>
-						{ module.CurrentRelease.Version }
+						<a href={ templ.URL(fmt.Sprintf("/modules/%s/%s", module.Slug, module.CurrentRelease.Version)) }>{ module.CurrentRelease.Version }</a>
 					</td>
 				</tr>
 			}

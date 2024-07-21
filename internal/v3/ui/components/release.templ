@@ -30,20 +30,22 @@ templ ReleaseView(release *gen.Release) {
 					Version
 				</td>
 				<td>
-					{ release.Version }
+					{ release.Version } <a href={ templ.URL(release.FileUri) }>(Download)</a>
 				</td>
 			</tr>
-			<tr>
-				<td>
-					Dependencies
-				</td>
-				<td>
-					for _, dep := range deps(release.Metadata) {
-						<a href={ templ.URL(fmt.Sprintf("/modules/%s", normalize(dep.Name))) }>{ dep.Name } { dep.VersionRequirement }</a>
-						<br/>
-					}
-				</td>
-			</tr>
+			if len(deps(release.Metadata)) > 0 {
+				<tr>
+					<td>
+						Dependencies
+					</td>
+					<td>
+						for _, dep := range deps(release.Metadata) {
+							<a href={ templ.URL(fmt.Sprintf("/modules/%s", normalize(dep.Name))) }>{ dep.Name } { dep.VersionRequirement }</a>
+							<br/>
+						}
+					</td>
+				</tr>
+			}
 		</tbody>
 	</table>
 }
