@@ -105,6 +105,7 @@ Flags:
       --port int                  the port to listen to (default 8080)
       --tls-cert string           path to tls cert file
       --tls-key string            path to tls key file
+      --ui                        enables the web ui
       --user string               give control to this user or uid (requires root)
 
 Global Flags:
@@ -151,6 +152,8 @@ Via file (`$HOME/.config/gorge.yaml` or `./gorge.yaml`):
 
 ```yaml
 ---
+# Enable basic web ui
+ui: false
 # Set uid of process to this users uid
 user: ""
 # Set gid of process to this groups gid
@@ -196,6 +199,7 @@ tls-key: ""
 Via environment:
 
 ```bash
+GORGE_UI=false
 GORGE_USER=""
 GORGE_GROUP=""
 GORGE_API_VERSION=v3
