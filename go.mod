@@ -3,6 +3,7 @@ module github.com/dadav/gorge
 go 1.22.0
 
 require (
+	github.com/a-h/templ v0.2.747
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/jwtauth/v5 v5.3.1

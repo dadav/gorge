@@ -1,0 +1,28 @@
+package components
+
+templ Nav(title string) {
+	<nav>
+		<ul>
+			<li>
+				<a href="/" class="secondary">Search</a>
+			</li>
+			<li>
+				<a href="/statistics" class="secondary">Stats</a>
+			</li>
+		</ul>
+		<ul>
+			<li><strong>{ title }</strong></li>
+		</ul>
+		<ul>
+			<li>
+				<div class="switch">
+					<input type="checkbox" class="switch__input" id="theme-toggle"/>
+					<label class="switch__label" for="theme-toggle">
+						<span class="switch__indicator"></span>
+						<span class="switch__decoration"></span>
+					</label>
+				</div>
+			</li>
+		</ul>
+	</nav>
+}

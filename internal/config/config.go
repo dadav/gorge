@@ -8,6 +8,7 @@ var (
 	Bind                  string
 	Dev                   bool
 	DropPrivileges        bool
+	UI                    bool
 	ModulesDir            string
 	ModulesScanSec        int
 	Backend               string

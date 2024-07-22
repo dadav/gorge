@@ -1,0 +1,51 @@
+package components
+
+import (
+	"fmt"
+	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+)
+
+templ ReleaseView(release *gen.Release) {
+	<h3>{ release.Module.Name }</h3>
+	<table>
+		<tbody>
+			<tr>
+				<td>
+					Name
+				</td>
+				<td>
+					{ release.Module.Name }
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Author
+				</td>
+				<td>
+					<a href={ templ.URL(fmt.Sprintf("/authors/%s", release.Module.Owner.Slug)) }>{ release.Module.Owner.Username }</a>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Version
+				</td>
+				<td>
+					{ release.Version } <a href={ templ.URL(release.FileUri) }>(Download)</a>
+				</td>
+			</tr>
+			if len(deps(release.Metadata)) > 0 {
+				<tr>
+					<td>
+						Dependencies
+					</td>
+					<td>
+						for _, dep := range deps(release.Metadata) {
+							<a href={ templ.URL(fmt.Sprintf("/modules/%s", normalize(dep.Name))) }>{ dep.Name } { dep.VersionRequirement }</a>
+							<br/>
+						}
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}

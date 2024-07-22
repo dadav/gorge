@@ -38,11 +38,11 @@ import (
 	"github.com/dadav/gorge/internal/utils"
 	v3 "github.com/dadav/gorge/internal/v3/api"
 	backend "github.com/dadav/gorge/internal/v3/backend"
+	"github.com/dadav/gorge/internal/v3/ui"
 	openapi "github.com/dadav/gorge/pkg/gen/v3/openapi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/stampede"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -127,11 +127,13 @@ You can also enable the caching functionality to speed things up.`,
 			r := chi.NewRouter()
 
 			// Logger should come before any middleware that modifies the response
-			// r.Use(middleware.Logger)
+			r.Use(middleware.Logger)
 			// Recoverer should also be pretty high in the middleware stack
 			r.Use(middleware.Recoverer)
 			r.Use(middleware.RealIP)
 			r.Use(customMiddleware.RequireUserAgent)
+			x := customMiddleware.NewStatistics()
+			r.Use(customMiddleware.StatisticsMiddleware(x))
 			r.Use(cors.Handler(cors.Options{
 				AllowedOrigins:   strings.Split(config.CORSOrigins, ","),
 				AllowedMethods:   []string{"GET", "POST", "DELETE", "PATCH"},
@@ -139,22 +141,6 @@ You can also enable the caching functionality to speed things up.`,
 				AllowCredentials: false,
 				MaxAge:           300,
 			}))
-
-			if !config.Dev {
-				tokenAuth := jwtauth.New("HS256", []byte(config.JwtSecret), nil)
-				r.Use(customMiddleware.AuthMiddleware(tokenAuth, func(r *http.Request) bool {
-					// Everything but GET is protected and requires a jwt token
-					return r.Method != "GET"
-				}))
-
-				_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{"user": "admin"})
-				err = os.WriteFile(config.JwtTokenPath, []byte(tokenString), 0400)
-				if err != nil {
-					log.Log.Fatal(err)
-				}
-				log.Log.Infof("JWT token was written to %s", config.JwtTokenPath)
-			}
-
 			if !config.NoCache {
 				customKeyFunc := func(r *http.Request) uint64 {
 					token := r.Header.Get("Authorization")
@@ -164,45 +150,58 @@ You can also enable the caching functionality to speed things up.`,
 				r.Use(cachedMiddleware)
 			}
 
-			if config.FallbackProxyUrl != "" {
-				proxies := strings.Split(config.FallbackProxyUrl, ",")
-				slices.Reverse(proxies)
-
-				for _, proxy := range proxies {
-					r.Use(customMiddleware.ProxyFallback(proxy, func(status int) bool {
-						return status == http.StatusNotFound
-					},
-						func(r *http.Response) {
-							if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
-								body, err := io.ReadAll(r.Body)
-								if err != nil {
-									log.Log.Error(err)
-									return
-								}
-
-								// restore the body
-								r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-								release, err := backend.ConfiguredBackend.AddRelease(body)
-								if err != nil {
-									log.Log.Error(err)
-									return
-								}
-								log.Log.Infof("Imported release %s\n", release.Slug)
-							}
-						},
-					))
-				}
+			if config.UI {
+				r.Group(func(r chi.Router) {
+					r.HandleFunc("/", ui.IndexHandler)
+					r.HandleFunc("/search", ui.SearchHandler)
+					r.HandleFunc("/modules/{module}", ui.ModuleHandler)
+					r.HandleFunc("/modules/{module}/{version}", ui.ReleaseHandler)
+					r.HandleFunc("/authors/{author}", ui.AuthorHandler)
+					r.HandleFunc("/statistics", ui.StatisticsHandler(x))
+					r.Handle("/assets/*", ui.HandleAssets())
+				})
 			}
 
-			apiRouter := openapi.NewRouter(
-				openapi.NewModuleOperationsAPIController(moduleService),
-				openapi.NewReleaseOperationsAPIController(releaseService),
-				openapi.NewSearchFilterOperationsAPIController(searchFilterService),
-				openapi.NewUserOperationsAPIController(userService),
-			)
+			r.Group(func(r chi.Router) {
+				if config.FallbackProxyUrl != "" {
+					proxies := strings.Split(config.FallbackProxyUrl, ",")
+					slices.Reverse(proxies)
 
-			r.Mount("/", apiRouter)
+					for _, proxy := range proxies {
+						r.Use(customMiddleware.ProxyFallback(proxy, func(status int) bool {
+							return status == http.StatusNotFound
+						},
+							func(r *http.Response) {
+								if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
+									body, err := io.ReadAll(r.Body)
+									if err != nil {
+										log.Log.Error(err)
+										return
+									}
+
+									// restore the body
+									r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+									release, err := backend.ConfiguredBackend.AddRelease(body)
+									if err != nil {
+										log.Log.Error(err)
+										return
+									}
+									log.Log.Infof("Imported release %s\n", release.Slug)
+								}
+							},
+						))
+					}
+				}
+				apiRouter := openapi.NewRouter(
+					openapi.NewModuleOperationsAPIController(moduleService),
+					openapi.NewReleaseOperationsAPIController(releaseService),
+					openapi.NewSearchFilterOperationsAPIController(searchFilterService),
+					openapi.NewUserOperationsAPIController(userService),
+				)
+
+				r.Mount("/v3", apiRouter)
+			})
 
 			r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -325,6 +324,7 @@ func init() {
 	serveCmd.Flags().StringVar(&config.FallbackProxyUrl, "fallback-proxy", "", "optional comma separated list of fallback upstream proxy urls")
 	serveCmd.Flags().BoolVar(&config.Dev, "dev", false, "enables dev mode")
 	serveCmd.Flags().BoolVar(&config.DropPrivileges, "drop-privileges", false, "drops privileges to the given user/group")
+	serveCmd.Flags().BoolVar(&config.UI, "ui", false, "enables the web ui")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
 	serveCmd.Flags().StringVar(&config.JwtTokenPath, "jwt-token-path", "~/.gorge/token", "jwt token path")
