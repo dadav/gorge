@@ -5,7 +5,7 @@ import (
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
-templ SearchView(query string, modules []*gen.Module) {
+templ SearchView(query string, modules []*gen.Module, page, maxPage, pageSize int) {
 	<div class="search">
 		<img src="/assets/logo.png" width="400"/>
 		<br/>
@@ -17,13 +17,22 @@ templ SearchView(query string, modules []*gen.Module) {
 			value={ query }
 			placeholder="Name, author, version..."
 			hx-get="/search"
-			hx-params="*"
 			hx-trigger="input changed delay:500ms, search"
 			hx-target="#search-results"
 			hx-select="#search-results"
 			hx-swap="outerHTML"
 			hx-replace-url="true"
+			hx-include="#pagesize"
 		/>
+		<div id="pagesizewrapper">
+			<label for="pagesize">Modules per page:</label>
+			<select name="page_size" id="pagesize" hx-get="/search" hx-target="div.search" hx-select="div.search" hx-swap="outerHTML" hx-include="#query" hx-trigger="change" hx-replace-url="true">
+				<option selected?={ pageSize == 10 } value="10">10</option>
+				<option selected?={ pageSize == 25 } value="25">25</option>
+				<option selected?={ pageSize == 50 } value="50">50</option>
+				<option selected?={ pageSize == 100 } value="100">100</option>
+			</select>
+		</div>
 		<table class="table">
 			<thead>
 				<tr>
@@ -40,6 +49,43 @@ templ SearchView(query string, modules []*gen.Module) {
 				}
 			</tbody>
 		</table>
+		<div id="pagination">
+			<button
+				if page - 1 <= 0 {
+					disabled
+				}
+				class="btn primary"
+				hx-get="/search"
+				name="page"
+				value={ fmt.Sprintf("%d", page-1) }
+				hx-include="#query, #pagesize"
+				hx-target="div.search"
+				hx-select="div.search"
+				hx-swap="outerHTML"
+				hx-replace-url="true"
+			>
+				Previous
+				>
+			</button>
+			<p>{ fmt.Sprintf("Page: %d/%d", page, maxPage) }</p>
+			<button
+				if page + 1 > maxPage {
+					disabled
+				}
+				class="btn primary"
+				hx-get="/search"
+				name="page"
+				value={ fmt.Sprintf("%d", page+1) }
+				hx-include="#query, #pagesize"
+				hx-target="div.search"
+				hx-select="div.search"
+				hx-swap="outerHTML"
+				hx-replace-url="true"
+			>
+				Next
+				>
+			</button>
+		</div>
 	</div>
 }
 

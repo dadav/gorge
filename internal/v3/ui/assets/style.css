@@ -5,6 +5,17 @@
   flex-direction: column;
 }
 
+#pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+#pagesizewrapper {
+  margin-left: auto;
+}
+
 #query {
   max-width: 50%;
 }

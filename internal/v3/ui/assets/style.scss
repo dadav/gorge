@@ -5,6 +5,18 @@
   flex-direction: column;
 }
 
+#pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+#pagesizewrapper {
+  // width: 100px;
+  margin-left: auto;
+}
+
 #query {
   max-width: 50%;
 }

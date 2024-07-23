@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"math"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -20,11 +23,26 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 		log.Log.Error(err)
 		return
 	}
-	templ.Handler(components.Page("Gorge", components.SearchView("", modules))).ServeHTTP(w, r)
+	templ.Handler(components.Page("Gorge", components.SearchView("", modules, 1, 1, 10))).ServeHTTP(w, r)
+}
+
+type Pagination struct {
+	Current int
+	Max     int
+}
+
+func NewPagination(current, max int) Pagination {
+	return Pagination{
+		Current: current,
+		Max:     max,
+	}
 }
 
 func SearchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("query")
+	page := r.URL.Query().Get("page")
+	pageSize := r.URL.Query().Get("page_size")
+
 	modules, err := backend.ConfiguredBackend.GetAllModules()
 	if err != nil {
 		w.WriteHeader(500)
@@ -46,7 +64,41 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	templ.Handler(components.Page("Gorge", components.SearchView(query, filtered))).ServeHTTP(w, r)
+	sort.SliceStable(filtered, func(i, j int) bool {
+		return filtered[i].Slug < filtered[j].Slug
+	})
+
+	pageInt := 1
+	pageSizeInt := 10
+
+	if page != "" {
+		pageInt, _ = strconv.Atoi(page)
+		if pageInt < 1 {
+			pageInt = 1
+		}
+	}
+	if pageSize != "" {
+		pageSizeInt, _ = strconv.Atoi(pageSize)
+	}
+
+	maxPageInt := int(math.Ceil(float64(len(filtered)) / float64(pageSizeInt)))
+
+	startIdx := (pageInt - 1) * pageSizeInt
+	endIdx := startIdx + pageSizeInt
+
+	if startIdx > len(filtered) {
+		startIdx = len(filtered)
+		w.WriteHeader(404)
+		return
+	}
+
+	if endIdx > len(filtered) {
+		endIdx = len(filtered)
+	}
+
+	filtered = filtered[startIdx:endIdx]
+
+	templ.Handler(components.Page("Gorge", components.SearchView(query, filtered, pageInt, maxPageInt, pageSizeInt))).ServeHTTP(w, r)
 }
 
 func AuthorHandler(w http.ResponseWriter, r *http.Request) {

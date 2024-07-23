@@ -13,7 +13,7 @@ import (
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
 )
 
-func SearchView(query string, modules []*gen.Module) templ.Component {
+func SearchView(query string, modules []*gen.Module, page, maxPage, pageSize int) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -44,7 +44,47 @@ func SearchView(query string, modules []*gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"Name, author, version...\" hx-get=\"/search\" hx-params=\"*\" hx-trigger=\"input changed delay:500ms, search\" hx-target=\"#search-results\" hx-select=\"#search-results\" hx-swap=\"outerHTML\" hx-replace-url=\"true\"><table class=\"table\"><thead><tr><th scope=\"col\">Module</th><th scope=\"col\">Author</th><th scope=\"col\">Version</th></tr></thead> <tbody id=\"search-results\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" placeholder=\"Name, author, version...\" hx-get=\"/search\" hx-trigger=\"input changed delay:500ms, search\" hx-target=\"#search-results\" hx-select=\"#search-results\" hx-swap=\"outerHTML\" hx-replace-url=\"true\" hx-include=\"#pagesize\"><div id=\"pagesizewrapper\"><label for=\"pagesize\">Modules per page:</label> <select name=\"page_size\" id=\"pagesize\" hx-get=\"/search\" hx-target=\"div.search\" hx-select=\"div.search\" hx-swap=\"outerHTML\" hx-include=\"#query\" hx-trigger=\"change\" hx-replace-url=\"true\"><option")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if pageSize == 10 {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" value=\"10\">10</option> <option")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if pageSize == 25 {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" value=\"25\">25</option> <option")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if pageSize == 50 {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" value=\"50\">50</option> <option")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if pageSize == 100 {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" selected")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" value=\"100\">100</option></select></div><table class=\"table\"><thead><tr><th scope=\"col\">Module</th><th scope=\"col\">Author</th><th scope=\"col\">Version</th></tr></thead> <tbody id=\"search-results\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -56,7 +96,66 @@ func SearchView(query string, modules []*gen.Module) templ.Component {
 				}
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table><div id=\"pagination\"><button")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if page-1 <= 0 {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" disabled")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" class=\"btn primary\" hx-get=\"/search\" name=\"page\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", page-1))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 60, Col: 37}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-include=\"#query, #pagesize\" hx-target=\"div.search\" hx-select=\"div.search\" hx-swap=\"outerHTML\" hx-replace-url=\"true\">Previous ></button><p>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("Page: %d/%d", page, maxPage))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 70, Col: 49}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><button")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if page+1 > maxPage {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" disabled")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(" class=\"btn primary\" hx-get=\"/search\" name=\"page\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", page+1))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 78, Col: 37}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" hx-include=\"#query, #pagesize\" hx-target=\"div.search\" hx-select=\"div.search\" hx-swap=\"outerHTML\" hx-replace-url=\"true\">Next ></button></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -77,17 +176,17 @@ func ModuleToTableRow(module *gen.Module) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<tr><td><a href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 templ.SafeURL = templ.URL(fmt.Sprintf("/modules/%s", module.Slug))
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var4)))
+		var templ_7745c5c3_Var7 templ.SafeURL = templ.URL(fmt.Sprintf("/modules/%s", module.Slug))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var7)))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -95,12 +194,12 @@ func ModuleToTableRow(module *gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(module.Name)
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(module.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 48, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 94, Col: 82}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,8 +207,8 @@ func ModuleToTableRow(module *gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var6 templ.SafeURL = templ.URL(fmt.Sprintf("/authors/%s", module.Owner.Slug))
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var6)))
+		var templ_7745c5c3_Var9 templ.SafeURL = templ.URL(fmt.Sprintf("/authors/%s", module.Owner.Slug))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var9)))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -117,12 +216,12 @@ func ModuleToTableRow(module *gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(module.Owner.Username)
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(module.Owner.Username)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 49, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 95, Col: 98}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -130,12 +229,12 @@ func ModuleToTableRow(module *gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(module.CurrentRelease.Version)
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(module.CurrentRelease.Version)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 50, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/search.templ`, Line: 96, Col: 37}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
