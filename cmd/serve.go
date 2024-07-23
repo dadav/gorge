@@ -126,9 +126,6 @@ You can also enable the caching functionality to speed things up.`,
 
 			r := chi.NewRouter()
 
-			// Logger should come before any middleware that modifies the response
-			r.Use(middleware.Logger)
-			// Recoverer should also be pretty high in the middleware stack
 			r.Use(middleware.Recoverer)
 			r.Use(middleware.RealIP)
 			r.Use(customMiddleware.RequireUserAgent)
@@ -200,7 +197,7 @@ You can also enable the caching functionality to speed things up.`,
 					openapi.NewUserOperationsAPIController(userService),
 				)
 
-				r.Mount("/v3", apiRouter)
+				r.Mount("/", apiRouter)
 			})
 
 			r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
