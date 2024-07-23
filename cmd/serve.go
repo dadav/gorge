@@ -200,7 +200,7 @@ You can also enable the caching functionality to speed things up.`,
 					openapi.NewUserOperationsAPIController(userService),
 				)
 
-				r.Mount("/v3", apiRouter)
+				r.Mount("/", apiRouter)
 			})
 
 			r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
