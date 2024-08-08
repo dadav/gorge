@@ -21,7 +21,7 @@ import (
 	"github.com/dadav/gorge/internal/model"
 	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
-	"golang.org/x/mod/semver"
+	"github.com/hashicorp/go-version"
 )
 
 type FilesystemBackend struct {
@@ -50,7 +50,9 @@ func findLatestVersion(releases []gen.ReleaseAbbreviated) string {
 			continue
 		}
 
-		if semver.Compare(r.Version, latest) >= 1 {
+		vVersion, _ := version.NewVersion(r.Version)
+		vlatest, _ := version.NewVersion(latest)
+		if vVersion.Compare(vlatest) >= 1 {
 			latest = r.Version
 		}
 	}
