@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alexflint/go-filemutex"
 	"github.com/dadav/gorge/internal/config"
 	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/model"
@@ -212,6 +213,17 @@ func (s *FilesystemBackend) AddRelease(releaseData []byte) (*gen.Release, error)
 		}
 	}
 
+	m, err := filemutex.New(fmt.Sprintf("%s.lock", releaseFilePath))
+	if err != nil {
+		return nil, err
+	}
+	log.Log.Debugf("locking %s\n", fmt.Sprintf("%s.lock", releaseFilePath))
+	err = m.Lock()
+	if err != nil {
+		return nil, err
+	}
+	defer m.Unlock()
+
 	err = os.WriteFile(releaseFilePath, releaseData, 0644)
 	if err != nil {
 		return nil, err
@@ -330,11 +342,25 @@ func (s *FilesystemBackend) LoadModules() error {
 			return nil
 		}
 
+		m, err := filemutex.New(fmt.Sprintf("%s.lock", path))
+		if err != nil {
+			return err
+		}
+
+		log.Log.Debugf("locking %s\n", fmt.Sprintf("%s.lock", path))
+		err = m.RLock()
+		if err != nil {
+			return err
+		}
+
 		log.Log.Debugf("Reading %s\n", path)
 		releaseBytes, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
+		log.Log.Debugf("removing lock %s\n", fmt.Sprintf("%s.lock", path))
+		m.RUnlock()
+
 		_, err = s.AddRelease(releaseBytes)
 		return err
 	})
@@ -348,6 +374,16 @@ func ReadReleaseMetadataFromFile(path string) (*model.ReleaseMetadata, string, e
 	var jsonData bytes.Buffer
 	var releaseMetadata model.ReleaseMetadata
 	readme := new(strings.Builder)
+
+	m, err := filemutex.New(fmt.Sprintf("%s.lock", path))
+	if err != nil {
+		return nil, "", err
+	}
+	err = m.RLock()
+	if err != nil {
+		return nil, "", err
+	}
+	defer m.RUnlock()
 
 	f, err := os.Open(path)
 	if err != nil {

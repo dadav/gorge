@@ -123,7 +123,7 @@ resources:
     #   - type: "null"
     # @schema
     # -- Maximum cpu
-    cpu:
+    cpu: 1
     # @schema
     # type: "string"
     # pattern: ^\d+[MTPG]i$

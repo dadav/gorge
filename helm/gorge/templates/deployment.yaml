@@ -28,9 +28,14 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          env:
-            - name: GORGE_MODULESDIR
-              value: /modules
+          args:
+            - serve
+            - --modulesdir=/modules
+            - --bind=0.0.0.0
+            - --port=8080
+            - --fallback-proxy=https://forge.puppetlabs.com
+            - --import-proxied-releases
+            - --modules-scan-sec=2
           ports:
             - name: http
               containerPort: 8080
