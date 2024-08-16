@@ -220,6 +220,10 @@ You can also enable the caching functionality to speed things up.`,
 			// otherwise, check only at startup
 			if config.ModulesScanSec > 0 {
 				g.Go(func() error {
+					// Call LoadModules immediately on startup
+					if err := backend.ConfiguredBackend.LoadModules(); err != nil {
+						return err
+					}
 					for {
 						select {
 						case <-gCtx.Done():
