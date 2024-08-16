@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexflint/go-filemutex"
 	"github.com/dadav/gorge/internal/config"
 	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/model"
@@ -151,8 +150,11 @@ func (s *FilesystemBackend) AddRelease(releaseData []byte) (*gen.Release, error)
 		return nil, errors.New("invalid release slug")
 	}
 
-	if _, ok := s.Releases[releaseSlug]; ok {
-		return nil, errors.New("release already exist")
+	// No need to re-read releases we know of
+	for _, release := range s.Releases[metadata.Name] {
+		if release.Slug == releaseSlug {
+			return release, nil
+		}
 	}
 	release := MetadataToRelease(metadata)
 
@@ -213,20 +215,12 @@ func (s *FilesystemBackend) AddRelease(releaseData []byte) (*gen.Release, error)
 		}
 	}
 
-	m, err := filemutex.New(fmt.Sprintf("%s.lock", releaseFilePath))
-	if err != nil {
-		return nil, err
-	}
-	log.Log.Debugf("locking %s\n", fmt.Sprintf("%s.lock", releaseFilePath))
-	err = m.Lock()
-	if err != nil {
-		return nil, err
-	}
-	defer m.Unlock()
-
-	err = os.WriteFile(releaseFilePath, releaseData, 0644)
-	if err != nil {
-		return nil, err
+	if _, err := os.Stat(releaseFilePath); os.IsNotExist(err) {
+		// Only write if file does not exist
+		err = os.WriteFile(releaseFilePath, releaseData, 0644)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return release, nil
@@ -330,8 +324,13 @@ func (s *FilesystemBackend) DeleteReleaseBySlug(slug string) error {
 }
 
 func (s *FilesystemBackend) LoadModules() error {
-	s.Modules = make(map[string]*gen.Module)
-	s.Releases = make(map[string][]*gen.Release)
+	// don't overwrite data we already have on modules and releases
+	if s.Modules == nil {
+		s.Modules = make(map[string]*gen.Module)
+	}
+	if s.Releases == nil {
+		s.Releases = make(map[string][]*gen.Release)
+	}
 
 	err := filepath.Walk(s.ModulesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -342,24 +341,11 @@ func (s *FilesystemBackend) LoadModules() error {
 			return nil
 		}
 
-		m, err := filemutex.New(fmt.Sprintf("%s.lock", path))
-		if err != nil {
-			return err
-		}
-
-		log.Log.Debugf("locking %s\n", fmt.Sprintf("%s.lock", path))
-		err = m.RLock()
-		if err != nil {
-			return err
-		}
-
 		log.Log.Debugf("Reading %s\n", path)
 		releaseBytes, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		log.Log.Debugf("removing lock %s\n", fmt.Sprintf("%s.lock", path))
-		m.RUnlock()
 
 		_, err = s.AddRelease(releaseBytes)
 		return err
@@ -374,16 +360,6 @@ func ReadReleaseMetadataFromFile(path string) (*model.ReleaseMetadata, string, e
 	var jsonData bytes.Buffer
 	var releaseMetadata model.ReleaseMetadata
 	readme := new(strings.Builder)
-
-	m, err := filemutex.New(fmt.Sprintf("%s.lock", path))
-	if err != nil {
-		return nil, "", err
-	}
-	err = m.RLock()
-	if err != nil {
-		return nil, "", err
-	}
-	defer m.RUnlock()
 
 	f, err := os.Open(path)
 	if err != nil {
