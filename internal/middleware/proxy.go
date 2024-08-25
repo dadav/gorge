@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -11,8 +12,15 @@ import (
 // capturedResponseWriter is a custom response writer that captures the response status
 type capturedResponseWriter struct {
 	http.ResponseWriter
-	body   []byte
+	body   *bytes.Buffer
 	status int
+}
+
+func NewCapturedResponseWriter(w http.ResponseWriter) *capturedResponseWriter {
+	return &capturedResponseWriter{
+		ResponseWriter: w,
+		body:           new(bytes.Buffer),
+	}
 }
 
 func (w *capturedResponseWriter) WriteHeader(code int) {
@@ -20,13 +28,12 @@ func (w *capturedResponseWriter) WriteHeader(code int) {
 }
 
 func (w *capturedResponseWriter) Write(body []byte) (int, error) {
-	w.body = body
-	return len(body), nil
+	return w.body.Write(body)
 }
 
 func (w *capturedResponseWriter) sendCapturedResponse() {
 	w.ResponseWriter.WriteHeader(w.status)
-	w.ResponseWriter.Write(w.body)
+	w.ResponseWriter.Write(w.body.Bytes())
 }
 
 func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
@@ -42,7 +49,7 @@ func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
 func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			capturedResponseWriter := &capturedResponseWriter{ResponseWriter: w}
+			capturedResponseWriter := NewCapturedResponseWriter(w)
 			next.ServeHTTP(capturedResponseWriter, r)
 
 			if forwardToProxy(capturedResponseWriter.status) {
