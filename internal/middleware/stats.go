@@ -7,21 +7,25 @@ import (
 )
 
 type Statistics struct {
-	ActiveConnections       int
-	TotalConnections        int
-	TotalResponseTime       time.Duration
-	ConnectionsPerEndpoint  map[string]int
-	ResponseTimePerEndpoint map[string]time.Duration
-	Mutex                   sync.Mutex
+	ActiveConnections             int
+	TotalConnections              int
+	ProxiedConnections            int
+	TotalResponseTime             time.Duration
+	ConnectionsPerEndpoint        map[string]int
+	ProxiedConnectionsPerEndpoint map[string]int
+	ResponseTimePerEndpoint       map[string]time.Duration
+	Mutex                         sync.Mutex
 }
 
 func NewStatistics() *Statistics {
 	return &Statistics{
-		ActiveConnections:       0,
-		TotalConnections:        0,
-		TotalResponseTime:       0,
-		ConnectionsPerEndpoint:  make(map[string]int),
-		ResponseTimePerEndpoint: make(map[string]time.Duration),
+		ActiveConnections:             0,
+		TotalConnections:              0,
+		ProxiedConnections:            0,
+		TotalResponseTime:             0,
+		ConnectionsPerEndpoint:        make(map[string]int),
+		ProxiedConnectionsPerEndpoint: make(map[string]int),
+		ResponseTimePerEndpoint:       make(map[string]time.Duration),
 	}
 }
 
@@ -41,6 +45,12 @@ func StatisticsMiddleware(stats *Statistics) func(next http.Handler) http.Handle
 				stats.ActiveConnections--
 				stats.TotalResponseTime += duration
 				stats.ResponseTimePerEndpoint[r.URL.Path] += duration
+
+				if w.Header().Get("X-Proxied-To") != "" {
+					stats.ProxiedConnections++
+					stats.ProxiedConnectionsPerEndpoint[r.URL.Path]++
+				}
+
 				stats.Mutex.Unlock()
 			}()
 
