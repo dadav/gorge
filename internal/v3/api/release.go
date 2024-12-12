@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/dadav/gorge/internal/log"
 	"net/http"
 	"net/url"
 	"os"
@@ -219,36 +220,58 @@ func (s *ReleaseOperationsApi) GetReleasePlans(ctx context.Context, releaseSlug 
 // GetReleases - List module releases
 func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, offset int32, sortBy string, module string, owner string, withPdk bool, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, moduleGroups []string, showDeleted bool, hideDeprecated bool, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, supported bool) (gen.ImplResponse, error) {
 	results := []gen.Release{}
-	filtered := []gen.Release{}
+	filtered := []*gen.Release{}
 	allReleases, _ := backend.ConfiguredBackend.GetAllReleases()
 	params := url.Values{}
 	params.Add("offset", strconv.Itoa(int(offset)))
 	params.Add("limit", strconv.Itoa(int(limit)))
+	filterSet := false
 
-	if int(offset)+1 > len(allReleases) {
-		return gen.Response(404, GetRelease404Response{
-			Message: "Invalid offset",
-			Errors:  []string{"The given offset is larger than the total number of modules."},
-		}), nil
+	if module != "" {
+		filterSet = true
+		params.Add("module", module)
+
+		// Perform an early query to see if the module even exists in the backend
+		_, err := backend.ConfiguredBackend.GetModuleBySlug(module)
+		if err != nil {
+			log.Log.Debugf("Could not find module with slug '%s' in backend, returning 404 so we can proxy if desired\n", module)
+
+			return gen.Response(http.StatusNotFound, GetRelease404Response{
+				Message: "No releases found",
+				Errors:  []string{"No module(s) found for given query."},
+			}), nil
+		}
 	}
 
-	for _, r := range allReleases[offset:] {
-		var filterMatched, filterSet bool
+	if owner != "" {
+		filterSet = true
+		params.Add("owner", owner)
+	}
 
-		if module != "" && r.Module.Slug != module {
-			filterSet = true
-			filterMatched = r.Module.Slug == module
-			params.Add("module", module)
-		}
-		if owner != "" && r.Module.Owner.Slug != owner {
-			filterSet = true
-			filterMatched = r.Module.Owner.Slug == owner
-			params.Add("owner", owner)
-		}
+	prefiltered := []*gen.Release{}
+	if len(allReleases) > int(offset) {
+		prefiltered = allReleases[offset:]
+	}
 
-		if !filterSet || filterMatched {
-			filtered = append(filtered, *r)
+	if filterSet {
+		// We search through all available releases to see if they match the filter
+		for _, r := range prefiltered {
+			var filterMatched bool
+
+			if module != "" && r.Module.Slug == module {
+				filterMatched = r.Module.Slug == module
+			}
+
+			if owner != "" && r.Module.Owner.Slug == owner {
+				filterMatched = r.Module.Owner.Slug == owner
+			}
+
+			if filterMatched {
+				filtered = append(filtered, r)
+			}
 		}
+	} else {
+		filtered = prefiltered
 	}
 
 	i := 1
@@ -256,8 +279,22 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 		if i > int(limit) {
 			break
 		}
-		results = append(results, release)
+
+		results = append(results, *release)
 		i++
+	}
+
+	if len(results) == 0 {
+		if module != "" {
+			log.Log.Debugf("No releases for '%s' found in backend\n", module)
+		} else {
+			log.Log.Debugf("No releases found in backend\n")
+		}
+
+		return gen.Response(http.StatusNotFound, GetRelease404Response{
+			Message: "No releases found",
+			Errors:  []string{"No release(s) found for given query."},
+		}), nil
 	}
 
 	base, _ := url.Parse("/v3/releases")
