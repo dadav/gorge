@@ -16,6 +16,7 @@ var (
 	FallbackProxyUrl      string
 	NoCache               bool
 	CachePrefixes         string
+	CacheByFullRequestURI bool
 	CacheMaxAge           int64
 	ImportProxiedReleases bool
 	JwtSecret             string

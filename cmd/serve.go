@@ -159,7 +159,13 @@ You can also enable the caching functionality to speed things up.`,
 					log.Log.Debug("Setting up cache middleware")
 					customKeyFunc := func(r *http.Request) uint64 {
 						token := r.Header.Get("Authorization")
-						return stampede.StringToHash(r.Method, r.URL.Path, strings.ToLower(token))
+						requestURI := r.URL.Path
+
+						if config.CacheByFullRequestURI {
+							requestURI = r.URL.RequestURI()
+						}
+
+						return stampede.StringToHash(r.Method, requestURI, strings.ToLower(token))
 					}
 
 					cachedMiddleware := stampede.HandlerWithKey(
@@ -384,4 +390,5 @@ func init() {
 	serveCmd.Flags().Int64Var(&config.CacheMaxAge, "cache-max-age", 86400, "max number of seconds responses should be cached")
 	serveCmd.Flags().BoolVar(&config.NoCache, "no-cache", false, "disables the caching functionality")
 	serveCmd.Flags().BoolVar(&config.ImportProxiedReleases, "import-proxied-releases", false, "add every proxied modules to local store")
+	serveCmd.Flags().BoolVar(&config.CacheByFullRequestURI, "cache-by-full-request-uri", false, "will cache responses by the full request URI (incl. query fragments) instead of only the request path")
 }
