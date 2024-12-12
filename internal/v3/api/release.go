@@ -266,14 +266,14 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	if filterSet {
 		// We search through all available releases to see if they match the filter
 		for _, r := range prefiltered {
-			var filterMatched bool
+			filterMatched := true
 
-			if module != "" && r.Module.Slug == module {
-				filterMatched = r.Module.Slug == module
+			if module != "" && r.Module.Slug != module {
+				filterMatched = false
 			}
 
-			if owner != "" && r.Module.Owner.Slug == owner {
-				filterMatched = r.Module.Owner.Slug == owner
+			if owner != "" && r.Module.Owner.Slug != owner {
+				filterMatched = false
 			}
 
 			if filterMatched {
