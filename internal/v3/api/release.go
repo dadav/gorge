@@ -227,6 +227,16 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	params.Add("limit", strconv.Itoa(int(limit)))
 	filterSet := false
 
+	// We know there's no releases and a fallback proxy, so we should return a 404 to let the proxy handle it
+	if config.FallbackProxyUrl != "" && len(allReleases) == 0 {
+		log.Log.Debugln("Could not find *any* releases in the backend, returning 404 so we can proxy if desired")
+
+		return gen.Response(http.StatusNotFound, GetRelease404Response{
+			Message: "No releases found",
+			Errors:  []string{"Did not retrieve any releases from the backend."},
+		}), nil
+	}
+
 	if module != "" {
 		filterSet = true
 		params.Add("module", module)
@@ -284,11 +294,12 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 		i++
 	}
 
-	if len(results) == 0 {
+	// If we're using a fallback-proxy, we should return a 404 so the proxy can handle the request
+	if config.FallbackProxyUrl != "" && len(results) == 0 {
 		if module != "" {
 			log.Log.Debugf("No releases for '%s' found in backend\n", module)
 		} else {
-			log.Log.Debugf("No releases found in backend\n")
+			log.Log.Debugln("No releases found in backend")
 		}
 
 		return gen.Response(http.StatusNotFound, GetRelease404Response{
