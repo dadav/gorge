@@ -282,14 +282,9 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 		}
 	}
 
-	prefiltered := []*gen.Release{}
-	if len(allReleases) > int(offset) {
-		prefiltered = allReleases[offset:]
-	}
-
 	if filterSet {
 		// We search through all available releases to see if they match the filter
-		for _, r := range prefiltered {
+		for _, r := range allReleases {
 			if module != "" && r.Module.Slug != module {
 				continue
 			}
@@ -301,17 +296,19 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 			filtered = append(filtered, r)
 		}
 	} else {
-		filtered = prefiltered
+		filtered = allReleases
 	}
 
-	i := 1
-	for _, release := range filtered {
-		if i > int(limit) {
-			break
-		}
+	if len(filtered) > int(offset) {
+		i := 1
+		for _, release := range filtered[offset:] {
+			if i > int(limit) {
+				break
+			}
 
-		results = append(results, *release)
-		i++
+			results = append(results, *release)
+			i++
+		}
 	}
 
 	// If we're using a fallback-proxy, we should return a 404 so the proxy can handle the request
