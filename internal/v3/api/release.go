@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/dadav/gorge/internal/log"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/dadav/gorge/internal/config"
+	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/v3/backend"
 	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
@@ -222,10 +222,27 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	results := []gen.Release{}
 	filtered := []*gen.Release{}
 	allReleases, _ := backend.ConfiguredBackend.GetAllReleases()
+
+	base, _ := url.Parse("/v3/releases")
 	params := url.Values{}
+
+	filterSet := false
+
+	if module != "" {
+		filterSet = true
+		params.Add("module", module)
+	}
+
+	if owner != "" {
+		filterSet = true
+		params.Add("owner", owner)
+	}
+
 	params.Add("offset", strconv.Itoa(int(offset)))
 	params.Add("limit", strconv.Itoa(int(limit)))
-	filterSet := false
+
+	base.RawQuery = params.Encode()
+	currentInf := interface{}(base.String())
 
 	// We know there's no releases and a fallback proxy, so we should return a 404 to let the proxy handle it
 	if config.FallbackProxyUrl != "" && len(allReleases) == 0 {
@@ -238,24 +255,31 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	}
 
 	if module != "" {
-		filterSet = true
-		params.Add("module", module)
-
-		// Perform an early query to see if the module even exists in the backend
+		// Perform an early query to see if the module even exists in the backend, optimization for instances with _many_ modules
 		_, err := backend.ConfiguredBackend.GetModuleBySlug(module)
 		if err != nil {
 			log.Log.Debugf("Could not find module with slug '%s' in backend, returning 404 so we can proxy if desired\n", module)
 
-			return gen.Response(http.StatusNotFound, GetRelease404Response{
-				Message: "No releases found",
-				Errors:  []string{"No module(s) found for given query."},
-			}), nil
+			if config.FallbackProxyUrl != "" {
+				return gen.Response(http.StatusNotFound, GetRelease404Response{
+					Message: "No releases found",
+					Errors:  []string{"No module(s) found for given query."},
+				}), nil
+			} else {
+				return gen.Response(http.StatusOK, gen.GetReleases200Response{
+					Pagination: gen.GetReleases200ResponsePagination{
+						Limit:    limit,
+						Offset:   offset,
+						First:    &currentInf,
+						Previous: nil,
+						Current:  &currentInf,
+						Next:     nil,
+						Total:    0,
+					},
+					Results: []gen.Release{},
+				}), nil
+			}
 		}
-	}
-
-	if owner != "" {
-		filterSet = true
-		params.Add("owner", owner)
 	}
 
 	prefiltered := []*gen.Release{}
@@ -304,7 +328,6 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 		}), nil
 	}
 
-	base, _ := url.Parse("/v3/releases")
 	base.RawQuery = params.Encode()
 	currentInf := interface{}(base.String())
 	params.Set("offset", "0")
