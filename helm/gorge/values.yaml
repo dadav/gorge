@@ -43,7 +43,7 @@ image:
   # type: string
   # @schema
   # -- Image tag to use.
-  tag: latest
+  tag: latest@sha256:33f11678e1b6faf14431485bbdee428177697cdff43d1595654635aed46ee919
 
 # @schema
 # type: array
