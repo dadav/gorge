@@ -90,6 +90,7 @@ Flags:
       --bind string               host to listen to (default "127.0.0.1")
       --cache-max-age int         max number of seconds responses should be cached (default 86400)
       --cache-prefixes string     url prefixes to cache (default "/v3/files")
+      --cache-by-full-request-uri will cache responses by the full request URI (incl. query fragments) instead of only the request path
       --cors string               allowed cors origins separated by comma (default "*")
       --dev                       enables dev mode
       --drop-privileges           drops privileges to the given user/group
@@ -207,6 +208,7 @@ GORGE_BACKEND=filesystem
 GORGE_BIND=127.0.0.1
 GORGE_CACHE_MAX_AGE=86400
 GORGE_CACHE_PREFIXES=/v3/files
+GORGE_CACHE_BY_FULL_REQUEST_URI=false
 GORGE_CORS="*"
 GORGE_DEV=false
 GORGE_DROP_PRIVILEGES=false

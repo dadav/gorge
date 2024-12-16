@@ -45,16 +45,29 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><p>TotalConnections: ")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><p>ProxiedConnections: ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(stats.TotalConnections))
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(stats.ProxiedConnections))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 13, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 13, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><p>TotalConnections: ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(stats.TotalConnections))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 14, Col: 61}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -62,16 +75,16 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(stats.TotalResponseTime.String())
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(stats.TotalResponseTime.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 14, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 15, Col: 58}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><table><thead><tr><th>Path</th><th>Connections</th><th>Average ResponseTime</th><th>Total ResponseTime</th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><table><thead><tr><th>Path</th><th>Connections</th><th>Proxied Connections</th><th>Average ResponseTime</th><th>Total ResponseTime</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -80,23 +93,10 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(path)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 27, Col: 16}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(connections))
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 28, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 29, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -107,9 +107,9 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs((stats.ResponseTimePerEndpoint[path] / time.Duration(connections)).String())
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(connections))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 29, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 30, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -120,11 +120,37 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(stats.ResponseTimePerEndpoint[path].String())
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(stats.ProxiedConnectionsPerEndpoint[path]))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 30, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 31, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs((stats.ResponseTimePerEndpoint[path] / time.Duration(connections)).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 32, Col: 87}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(stats.ResponseTimePerEndpoint[path].String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 33, Col: 56}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
