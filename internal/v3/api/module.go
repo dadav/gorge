@@ -8,10 +8,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dadav/gorge/internal/v3/backend"
 	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
+)
+
+const (
+	defaultLimit  = 20
+	maxLimit      = 100
+	defaultOffset = 0
 )
 
 type ModuleOperationsApi struct {
@@ -56,25 +63,54 @@ func (s *ModuleOperationsApi) DeleteModule(ctx context.Context, moduleSlug strin
 
 // DeprecateModule - Deprecate module
 func (s *ModuleOperationsApi) DeprecateModule(ctx context.Context, moduleSlug string, deprecationRequest gen.DeprecationRequest) (gen.ImplResponse, error) {
-	// TODO - update DeprecateModule with the required logic for this service method.
-	// Add api_module_operations_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	// Validate module slug
+	if !utils.CheckModuleSlug(moduleSlug) {
+		err := errors.New("invalid module slug")
+		return gen.Response(
+			http.StatusBadRequest,
+			DeleteModule500Response{
+				Message: err.Error(),
+				Errors:  []string{err.Error()},
+			},
+		), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(204, {}) or use other options such as http.Ok ...
-	// return Response(204, nil),nil
+	// Check if module exists
+	module, err := backend.ConfiguredBackend.GetModuleBySlug(moduleSlug)
+	if err != nil {
+		return gen.Response(
+			http.StatusNotFound,
+			GetModule404Response{
+				Message: "Module not found",
+				Errors:  []string{"Module could not be found"},
+			},
+		), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(400, GetFile400Response{}) or use other options such as http.Ok ...
-	// return Response(400, GetFile400Response{}), nil
+	// Update module deprecation status
+	deprecatedAt := time.Now().UTC().Format(time.RFC3339)
+	module.DeprecatedAt = &deprecatedAt
+	module.DeprecatedFor = deprecationRequest.Params.Reason
 
-	// TODO: Uncomment the next line to return response Response(401, GetUserSearchFilters401Response{}) or use other options such as http.Ok ...
-	// return Response(401, GetUserSearchFilters401Response{}), nil
+	if *deprecationRequest.Params.ReplacementSlug != "" {
+		module.SupersededBy = gen.ModuleSupersededBy{
+			Slug: *deprecationRequest.Params.ReplacementSlug,
+		}
+	}
 
-	// TODO: Uncomment the next line to return response Response(403, DeleteUserSearchFilter403Response{}) or use other options such as http.Ok ...
-	// return Response(403, DeleteUserSearchFilter403Response{}), nil
+	// Save the updated module
+	err = backend.ConfiguredBackend.UpdateModule(module)
+	if err != nil {
+		return gen.Response(
+			http.StatusInternalServerError,
+			DeleteModule500Response{
+				Message: "Failed to deprecate module",
+				Errors:  []string{err.Error()},
+			},
+		), nil
+	}
 
-	// TODO: Uncomment the next line to return response Response(404, GetFile404Response{}) or use other options such as http.Ok ...
-	// return Response(404, GetFile404Response{}), nil
-
-	return gen.Response(http.StatusNotImplemented, nil), errors.New("DeprecateModule method not implemented")
+	return gen.Response(http.StatusNoContent, nil), nil
 }
 
 type GetModule404Response struct {
@@ -104,91 +140,115 @@ func (s *ModuleOperationsApi) GetModule(ctx context.Context, moduleSlug string, 
 
 // GetModules - List modules
 func (s *ModuleOperationsApi) GetModules(ctx context.Context, limit int32, offset int32, sortBy string, query string, tag string, owner string, withTasks bool, withPlans bool, withPdk bool, premium bool, excludePremium bool, endorsements []string, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, withMinimumScore int32, moduleGroups []string, showDeleted bool, hideDeprecated bool, onlyLatest bool, slugs []string, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, startsWith string, supported bool, withReleaseSince string) (gen.ImplResponse, error) {
-	results := []gen.Module{}
-	filtered := []gen.Module{}
-	allModules, _ := backend.ConfiguredBackend.GetAllModules()
-	params := url.Values{}
-	params.Add("offset", strconv.Itoa(int(offset)))
-	params.Add("limit", strconv.Itoa(int(limit)))
-
-	if int(offset)+1 > len(allModules) {
-		return gen.Response(404, GetModule404Response{
-			Message: "Invalid offset",
-			Errors:  []string{"The given offset is larger than the total number of (filtered) modules."},
-		}), nil
+	// Validate and set defaults for limit/offset
+	if limit <= 0 {
+		limit = defaultLimit
+	} else if limit > maxLimit {
+		limit = maxLimit
+	}
+	if offset < 0 {
+		offset = defaultOffset
 	}
 
+	// Get all modules with error handling
+	allModules, err := backend.ConfiguredBackend.GetAllModules()
+	if err != nil {
+		return gen.Response(
+			http.StatusInternalServerError,
+			GetModule500Response{
+				Message: "Failed to fetch modules",
+				Errors:  []string{err.Error()},
+			}), nil
+	}
+
+	// Check offset validity early
+	if int(offset) >= len(allModules) {
+		return gen.Response(
+			http.StatusNotFound,
+			GetModule404Response{
+				Message: "Invalid offset",
+				Errors:  []string{"The given offset is larger than the total number of modules"},
+			}), nil
+	}
+
+	// Create filter function type and map of filters
+	type filterFunc func(m *gen.Module) bool
+	filters := make(map[string]filterFunc)
+
+	// Add filters conditionally
+	if query != "" {
+		filters["query"] = func(m *gen.Module) bool {
+			return strings.Contains(m.Slug, query) || strings.Contains(m.Owner.Slug, query)
+		}
+	}
+	if tag != "" {
+		filters["tag"] = func(m *gen.Module) bool {
+			return slices.Contains(m.CurrentRelease.Tags, tag)
+		}
+	}
+	if owner != "" {
+		filters["owner"] = func(m *gen.Module) bool {
+			return m.Owner.Username == owner
+		}
+	}
+	if withTasks {
+		filters["with_tasks"] = func(m *gen.Module) bool {
+			return len(m.CurrentRelease.Tasks) > 0
+		}
+	}
+	if withPlans {
+		filters["with_plans"] = func(m *gen.Module) bool {
+			return len(m.CurrentRelease.Plans) > 0
+		}
+	}
+	if withPdk {
+		filters["with_pdk"] = func(m *gen.Module) bool {
+			return m.CurrentRelease.Pdk
+		}
+	}
+	if premium {
+		filters["premium"] = func(m *gen.Module) bool {
+			return m.Premium
+		}
+	}
+	if excludePremium {
+		filters["exclude_premium"] = func(m *gen.Module) bool {
+			return !m.Premium
+		}
+	}
+	if len(endorsements) > 0 {
+		filters["endorsements"] = func(m *gen.Module) bool {
+			return m.Endorsement != nil && slices.Contains(endorsements, *m.Endorsement)
+		}
+	}
+
+	// Apply filters
+	filtered := make([]gen.Module, 0)
 	for _, m := range allModules[offset:] {
-		var filterMatched, filterSet bool
-		if query != "" {
-			filterSet = true
-			filterMatched = strings.Contains(m.Slug, query) || strings.Contains(m.Owner.Slug, query)
-			params.Add("query", query)
+		passes := true
+		for _, filter := range filters {
+			if !filter(m) {
+				passes = false
+				break
+			}
 		}
-
-		if tag != "" {
-			filterSet = true
-			filterMatched = slices.Contains(m.CurrentRelease.Tags, tag)
-			params.Add("tag", tag)
-		}
-
-		if owner != "" {
-			filterSet = true
-			filterMatched = m.Owner.Username == owner
-			params.Add("owner", owner)
-		}
-
-		if withTasks {
-			filterSet = true
-			filterMatched = len(m.CurrentRelease.Tasks) > 0
-			params.Add("with_tasks", strconv.FormatBool(withTasks))
-		}
-
-		if withPlans {
-			filterSet = true
-			filterMatched = len(m.CurrentRelease.Plans) > 0
-			params.Add("with_plans", strconv.FormatBool(withPlans))
-		}
-
-		if withPdk {
-			filterSet = true
-			filterMatched = m.CurrentRelease.Pdk
-			params.Add("with_pdk", strconv.FormatBool(withPdk))
-		}
-
-		if premium {
-			filterSet = true
-			filterMatched = m.Premium
-			params.Add("premium", strconv.FormatBool(premium))
-		}
-
-		if excludePremium {
-			filterSet = true
-			filterMatched = !m.Premium
-			params.Add("exclude_premium", strconv.FormatBool(excludePremium))
-		}
-
-		if len(endorsements) > 0 {
-			filterSet = true
-			filterMatched = m.Endorsement != nil && slices.Contains(endorsements, *m.Endorsement)
-			params.Add("endorsements", "["+strings.Join(endorsements, ",")+"]")
-		}
-
-		if !filterSet || filterMatched {
+		if passes {
 			filtered = append(filtered, *m)
 		}
 	}
 
-	i := 1
-	for _, module := range filtered {
-		if i > int(limit) {
-			break
-		}
-		results = append(results, module)
-		i++
+	// Apply pagination
+	endIndex := int(limit)
+	if endIndex > len(filtered) {
+		endIndex = len(filtered)
 	}
+	results := filtered[:endIndex]
 
 	base, _ := url.Parse("/v3/modules")
+	params := url.Values{}
+	params.Add("offset", strconv.Itoa(int(offset)))
+	params.Add("limit", strconv.Itoa(int(limit)))
+
 	base.RawQuery = params.Encode()
 	currentInf := interface{}(base.String())
 	params.Set("offset", "0")
