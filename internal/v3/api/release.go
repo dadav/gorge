@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/dadav/gorge/internal/config"
+	"github.com/dadav/gorge/internal/log"
 	"github.com/dadav/gorge/internal/v3/backend"
 	"github.com/dadav/gorge/internal/v3/utils"
 	gen "github.com/dadav/gorge/pkg/gen/v3/openapi"
@@ -114,7 +115,6 @@ type GetFile400Response struct {
 
 // GetFile - Download module release
 func (s *ReleaseOperationsApi) GetFile(ctx context.Context, filename string) (gen.ImplResponse, error) {
-
 	if filename == "" {
 		return gen.Response(400, gen.GetFile400Response{
 			Message: "No filename provided",
@@ -261,50 +261,113 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	}
 
 	results := []gen.Release{}
-	filtered := []gen.Release{}
+	filtered := []*gen.Release{}
 	allReleases, _ := backend.ConfiguredBackend.GetAllReleases()
+
+	base, _ := url.Parse("/v3/releases")
 	params := url.Values{}
+
+	filterSet := false
+
+	if module != "" {
+		filterSet = true
+		params.Add("module", module)
+	}
+
+	if owner != "" {
+		filterSet = true
+		params.Add("owner", owner)
+	}
+
 	params.Add("offset", strconv.Itoa(int(offset)))
 	params.Add("limit", strconv.Itoa(int(limit)))
 
-	if int(offset)+1 > len(allReleases) {
-		return gen.Response(404, GetRelease404Response{
-			Message: "Invalid offset",
-			Errors:  []string{"The given offset is larger than the total number of modules."},
+	base.RawQuery = params.Encode()
+	currentInf := interface{}(base.String())
+
+	// We know there's no releases and a fallback proxy, so we should return a 404 to let the proxy handle it
+	if config.FallbackProxyUrl != "" && len(allReleases) == 0 {
+		log.Log.Debugln("Could not find *any* releases in the backend, returning 404 so we can proxy if desired")
+
+		return gen.Response(http.StatusNotFound, GetRelease404Response{
+			Message: "No releases found",
+			Errors:  []string{"Did not retrieve any releases from the backend."},
 		}), nil
 	}
 
-	for _, r := range allReleases[offset:] {
-		var filterMatched, filterSet bool
+	if module != "" {
+		// Perform an early query to see if the module even exists in the backend, optimization for instances with _many_ modules
+		_, err := backend.ConfiguredBackend.GetModuleBySlug(module)
+		if err != nil {
+			log.Log.Debugf("Could not find module with slug '%s' in backend, returning 404 so we can proxy if desired\n", module)
 
-		if module != "" && r.Module.Slug != module {
-			filterSet = true
-			filterMatched = r.Module.Slug == module
-			params.Add("module", module)
-		}
-		if owner != "" && r.Module.Owner.Slug != owner {
-			filterSet = true
-			filterMatched = r.Module.Owner.Slug == owner
-			params.Add("owner", owner)
-		}
-
-		if !filterSet || filterMatched {
-			filtered = append(filtered, *r)
+			if config.FallbackProxyUrl != "" {
+				return gen.Response(http.StatusNotFound, GetRelease404Response{
+					Message: "No releases found",
+					Errors:  []string{"No module(s) found for given query."},
+				}), nil
+			} else {
+				return gen.Response(http.StatusOK, gen.GetReleases200Response{
+					Pagination: gen.GetReleases200ResponsePagination{
+						Limit:    limit,
+						Offset:   offset,
+						First:    &currentInf,
+						Previous: nil,
+						Current:  &currentInf,
+						Next:     nil,
+						Total:    0,
+					},
+					Results: []gen.Release{},
+				}), nil
+			}
 		}
 	}
 
-	i := 1
-	for _, release := range filtered {
-		if i > int(limit) {
-			break
+	if filterSet {
+		// We search through all available releases to see if they match the filter
+		for _, r := range allReleases {
+			if module != "" && r.Module.Slug != module {
+				continue
+			}
+
+			if owner != "" && r.Module.Owner.Slug != owner {
+				continue
+			}
+
+			filtered = append(filtered, r)
 		}
-		results = append(results, release)
-		i++
+	} else {
+		filtered = allReleases
 	}
 
-	base, _ := url.Parse("/v3/releases")
+	if len(filtered) > int(offset) {
+		i := 1
+		for _, release := range filtered[offset:] {
+			if i > int(limit) {
+				break
+			}
+
+			results = append(results, *release)
+			i++
+		}
+	}
+
+	// If we're using a fallback-proxy, we should return a 404 so the proxy can handle the request
+	if config.FallbackProxyUrl != "" && len(results) == 0 {
+		if module != "" {
+			log.Log.Debugf("No releases for '%s' found in backend\n", module)
+		} else {
+			log.Log.Debugln("No releases found in backend")
+		}
+
+		return gen.Response(http.StatusNotFound, GetRelease404Response{
+			Message: "No releases found",
+			Errors:  []string{"No release(s) found for given query."},
+		}), nil
+	}
+
 	base.RawQuery = params.Encode()
-	currentInf := interface{}(base.String())
+	currentInf = interface{}(base.String())
 	params.Set("offset", "0")
 	firstInf := interface{}(base.String())
 

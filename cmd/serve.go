@@ -159,7 +159,13 @@ You can also enable the caching functionality to speed things up.`,
 					log.Log.Debug("Setting up cache middleware")
 					customKeyFunc := func(r *http.Request) uint64 {
 						token := r.Header.Get("Authorization")
-						return stampede.StringToHash(r.Method, r.URL.Path, strings.ToLower(token))
+						requestURI := r.URL.Path
+
+						if config.CacheByFullRequestURI {
+							requestURI = r.URL.RequestURI()
+						}
+
+						return stampede.StringToHash(r.Method, requestURI, strings.ToLower(token))
 					}
 
 					cachedMiddleware := stampede.HandlerWithKey(
@@ -209,10 +215,14 @@ You can also enable the caching functionality to speed things up.`,
 					slices.Reverse(proxies)
 
 					for _, proxy := range proxies {
-						r.Use(customMiddleware.ProxyFallback(proxy, func(status int) bool {
-							return status == http.StatusNotFound
-						},
+						r.Use(customMiddleware.ProxyFallback(
+							proxy,
+							func(status int) bool {
+								return status == http.StatusNotFound
+							},
 							func(r *http.Response) {
+								r.Header.Add("X-Proxied-To", proxy)
+
 								if config.ImportProxiedReleases && strings.HasPrefix(r.Request.URL.Path, "/v3/files/") && r.StatusCode == http.StatusOK {
 									body, err := io.ReadAll(r.Body)
 									if err != nil {
@@ -228,6 +238,7 @@ You can also enable the caching functionality to speed things up.`,
 										log.Log.Error(err)
 										return
 									}
+
 									log.Log.Infof("Imported release %s\n", release.Slug)
 								}
 							},
@@ -379,4 +390,5 @@ func init() {
 	serveCmd.Flags().Int64Var(&config.CacheMaxAge, "cache-max-age", 86400, "max number of seconds responses should be cached")
 	serveCmd.Flags().BoolVar(&config.NoCache, "no-cache", false, "disables the caching functionality")
 	serveCmd.Flags().BoolVar(&config.ImportProxiedReleases, "import-proxied-releases", false, "add every proxied modules to local store")
+	serveCmd.Flags().BoolVar(&config.CacheByFullRequestURI, "cache-by-full-request-uri", false, "will cache responses by the full request URI (incl. query fragments) instead of only the request path")
 }
