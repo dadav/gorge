@@ -52,23 +52,8 @@ func StatisticsMiddleware(stats *Statistics) func(next http.Handler) http.Handle
 				duration := time.Since(start)
 				stats.Mutex.Lock()
 				stats.ActiveConnections--
-
-				if w.Header().Get("X-Cache") == "HIT from gorge" {
-					stats.TotalCacheHits++
-					stats.CacheHitsPerEndpoint[r.URL.Path]++
-				} else {
-					stats.TotalCacheMisses++
-					stats.CacheMissesPerEndpoint[r.URL.Path]++
-				}
-
 				stats.TotalResponseTime += duration
 				stats.ResponseTimePerEndpoint[r.URL.Path] += duration
-
-				if w.Header().Get("X-Proxied-To") != "" {
-					stats.ProxiedConnections++
-					stats.ProxiedConnectionsPerEndpoint[r.URL.Path]++
-				}
-
 				stats.Mutex.Unlock()
 			}()
 

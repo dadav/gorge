@@ -49,7 +49,6 @@ func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
 func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			// Store original headers before any modifications
 			originalHeaders := make(http.Header)
 			for k, v := range w.Header() {
@@ -92,6 +91,12 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 					}
 					capturedResponseWriter.sendCapturedResponse()
 				}
+
+				stats := r.Context().Value("stats").(*Statistics)
+				stats.Mutex.Lock()
+				stats.ProxiedConnections++
+				stats.ProxiedConnectionsPerEndpoint[r.URL.Path]++
+				stats.Mutex.Unlock()
 
 				proxy.ServeHTTP(w, r)
 				return

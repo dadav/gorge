@@ -40,10 +40,10 @@ import (
 	backend "github.com/dadav/gorge/internal/v3/backend"
 	"github.com/dadav/gorge/internal/v3/ui"
 	openapi "github.com/dadav/gorge/pkg/gen/v3/openapi"
+	"github.com/dadav/stampede"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-chi/stampede"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -125,6 +125,16 @@ You can also enable the caching functionality to speed things up.`,
 			userService := v3.NewUserOperationsApi()
 
 			r := chi.NewRouter()
+
+			// 0. Inject statistic middleware
+			x := customMiddleware.NewStatistics()
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					ctx := context.WithValue(r.Context(), "stats", x)
+					next.ServeHTTP(w, r.WithContext(ctx))
+				})
+			})
+
 			// 1. Recoverer should be first to catch panics in all other middleware
 			r.Use(middleware.Recoverer)
 			// 2. RealIP should be early to ensure all other middleware sees the correct IP
@@ -139,8 +149,6 @@ You can also enable the caching functionality to speed things up.`,
 			}))
 			// 4. RequireUserAgent should be early to ensure all other middleware sees the correct user agent
 			r.Use(customMiddleware.RequireUserAgent)
-
-			x := customMiddleware.NewStatistics()
 
 			if config.UI {
 				r.Group(func(r chi.Router) {
@@ -168,10 +176,28 @@ You can also enable the caching functionality to speed things up.`,
 						return stampede.StringToHash(r.Method, requestURI, strings.ToLower(token))
 					}
 
-					cachedMiddleware := stampede.HandlerWithKey(
+					cbFunc := func(fromCache bool, w http.ResponseWriter, r *http.Request) error {
+						x.Mutex.Lock()
+						if fromCache {
+							log.Log.Debugf("Cache hit for path: %s", r.URL.Path)
+							x.TotalCacheHits++
+							x.CacheHitsPerEndpoint[r.URL.Path]++
+							w.Header().Set("X-Cache", "Hit from gorge")
+						} else {
+							log.Log.Debugf("Cache miss for path: %s", r.URL.Path)
+							x.TotalCacheMisses++
+							x.CacheMissesPerEndpoint[r.URL.Path]++
+							w.Header().Set("X-Cache", "MISS from gorge")
+						}
+						x.Mutex.Unlock()
+						return nil
+					}
+
+					cachedMiddleware := stampede.HandlerWithKeyAndCb(
 						512,
 						time.Duration(config.CacheMaxAge)*time.Second,
 						customKeyFunc,
+						cbFunc,
 					)
 					log.Log.Debugf("Cache middleware configured with prefixes: %s", config.CachePrefixes)
 
@@ -188,21 +214,7 @@ You can also enable the caching functionality to speed things up.`,
 							}
 
 							if shouldCache {
-								wrapper := customMiddleware.NewResponseWrapper(w)
-								// Set default cache status before serving
-								// w.Header().Set("X-Cache", "MISS from gorge")
-
-								cachedMiddleware(next).ServeHTTP(wrapper, r)
-
-								// Only override if it was served from cache
-								// TODO: this is not working as expected
-								if wrapper.WasWritten() {
-									log.Log.Debugf("Serving cached response for path: %s", r.URL.Path)
-									w.Header().Set("X-Cache", "HIT from gorge")
-								} else {
-									log.Log.Debugf("Cache miss for path: %s", r.URL.Path)
-									w.Header().Set("X-Cache", "MISS from gorge")
-								}
+								cachedMiddleware(next).ServeHTTP(w, r)
 							} else {
 								next.ServeHTTP(w, r)
 							}
