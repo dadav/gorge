@@ -161,6 +161,11 @@ func (s *FilesystemBackend) AddRelease(releaseData []byte) (*gen.Release, error)
 		return nil, err
 	}
 
+	// Validate metadata.Name to ensure it does not contain path separators or parent directory references
+	if strings.Contains(metadata.Name, "/") || strings.Contains(metadata.Name, "\\") || strings.Contains(metadata.Name, "..") {
+		return nil, errors.New("invalid module name")
+	}
+
 	releaseSlug := fmt.Sprintf("%s-%s", metadata.Name, metadata.Version)
 	if !utils.CheckReleaseSlug(releaseSlug) {
 		return nil, errors.New("invalid release slug")
