@@ -17,7 +17,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -47,8 +47,7 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error executing root command: %v", err)
 	}
 }
 
@@ -64,11 +63,9 @@ func initConfig(cmd *cobra.Command) error {
 		// Use config file from the flag.
 		v.SetConfigFile(cfgFile)
 	} else {
-		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return fmt.Errorf("failed to get home directory: %w", err)
 		}
 
 		homeConfig := filepath.Join(home, ".config")
@@ -81,27 +78,37 @@ func initConfig(cmd *cobra.Command) error {
 		v.SetEnvPrefix(envPrefix)
 	}
 
-	v.AutomaticEnv() // read in environment variables that match
+	v.AutomaticEnv()
 
 	// If a config file is found, read it in.
-	if err := v.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", v.ConfigFileUsed())
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Only return an error if it's not a missing config file
+			return fmt.Errorf("failed to read config file: %w", err)
+		}
+	} else {
+		log.Printf("Using config file: %s", v.ConfigFileUsed())
 	}
 
-	bindFlags(cmd, v)
-
-	return nil
+	return bindFlags(cmd, v)
 }
 
-func bindFlags(cmd *cobra.Command, v *viper.Viper) {
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		// Determine the naming convention of the flags when represented in the config file
-		configName := f.Name
+// bindFlags binds cobra flags with viper config
+func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
+	var bindingErrors []string
 
-		// Apply the viper config value to the flag when the flag is not set and viper has a value
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		configName := f.Name
 		if !f.Changed && v.IsSet(configName) {
 			val := v.Get(configName)
-			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			if err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val)); err != nil {
+				bindingErrors = append(bindingErrors, fmt.Sprintf("failed to bind flag %s: %v", f.Name, err))
+			}
 		}
 	})
+
+	if len(bindingErrors) > 0 {
+		return fmt.Errorf("flag binding errors: %s", strings.Join(bindingErrors, "; "))
+	}
+	return nil
 }

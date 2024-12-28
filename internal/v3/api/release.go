@@ -32,14 +32,26 @@ type GetRelease404Response struct {
 	Errors []string `json:"errors,omitempty"`
 }
 
+// Add custom error types for better error handling
+type ReleaseError struct {
+	Code    int
+	Message string
+	Errors  []string
+}
+
 // AddRelease - Create module release
 func (s *ReleaseOperationsApi) AddRelease(ctx context.Context, addReleaseRequest gen.AddReleaseRequest) (gen.ImplResponse, error) {
-	base64EncodedTarball := addReleaseRequest.File
+	if addReleaseRequest.File == "" {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: "No file data provided",
+			Errors:  []string{"file data is required"},
+		}), nil
+	}
 
-	decodedTarball, err := base64.StdEncoding.DecodeString(base64EncodedTarball)
+	decodedTarball, err := base64.StdEncoding.DecodeString(addReleaseRequest.File)
 	if err != nil {
 		return gen.Response(400, gen.GetFile400Response{
-			Message: "Could not decode provided data",
+			Message: "Invalid base64 encoded data",
 			Errors:  []string{err.Error()},
 		}), nil
 	}
@@ -47,7 +59,7 @@ func (s *ReleaseOperationsApi) AddRelease(ctx context.Context, addReleaseRequest
 	release, err := backend.ConfiguredBackend.AddRelease(decodedTarball)
 	if err != nil {
 		return gen.Response(400, gen.GetFile400Response{
-			Message: "could not add release",
+			Message: "Failed to add release",
 			Errors:  []string{err.Error()},
 		}), nil
 	}
@@ -102,21 +114,44 @@ type GetFile400Response struct {
 
 // GetFile - Download module release
 func (s *ReleaseOperationsApi) GetFile(ctx context.Context, filename string) (gen.ImplResponse, error) {
-	if !utils.CheckReleaseSlug(strings.TrimSuffix(filename, ".tar.gz")) {
+
+	if filename == "" {
 		return gen.Response(400, gen.GetFile400Response{
-			Message: http.StatusText(http.StatusNotFound),
+			Message: "No filename provided",
+			Errors:  []string{"filename is required"},
+		}), nil
+	}
+
+	// Validate the filename to ensure it does not contain any path separators or parent directory references
+	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") || strings.Contains(filename, "..") {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: "Invalid filename",
+			Errors:  []string{"filename contains invalid characters"},
+		}), nil
+	}
+
+	releaseSlug := strings.TrimSuffix(filename, ".tar.gz")
+	if !utils.CheckReleaseSlug(releaseSlug) {
+		return gen.Response(400, gen.GetFile400Response{
+			Message: "Invalid release slug format",
 			Errors:  []string{"release slug is invalid"},
 		}), nil
 	}
 
-	f, err := os.Open(filepath.Join(config.ModulesDir, ReleaseToModule(filename), filename))
+	filePath := filepath.Join(config.ModulesDir, ReleaseToModule(filename), filename)
+
+	f, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return gen.Response(http.StatusNotFound, gen.GetFile404Response{
-				Message: http.StatusText(http.StatusNotFound),
+				Message: "File not found",
 				Errors:  []string{"the file does not exist"},
 			}), nil
 		}
+		return gen.Response(http.StatusInternalServerError, GetRelease500Response{
+			Message: "Failed to open file",
+			Errors:  []string{err.Error()},
+		}), nil
 	}
 
 	return gen.Response(http.StatusOK, f), nil
@@ -218,6 +253,13 @@ func (s *ReleaseOperationsApi) GetReleasePlans(ctx context.Context, releaseSlug 
 
 // GetReleases - List module releases
 func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, offset int32, sortBy string, module string, owner string, withPdk bool, operatingsystem string, operatingsystemrelease string, peRequirement string, puppetRequirement string, moduleGroups []string, showDeleted bool, hideDeprecated bool, withHtml bool, includeFields []string, excludeFields []string, ifModifiedSince string, supported bool) (gen.ImplResponse, error) {
+	if limit <= 0 {
+		limit = 20 // Default limit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	results := []gen.Release{}
 	filtered := []gen.Release{}
 	allReleases, _ := backend.ConfiguredBackend.GetAllReleases()

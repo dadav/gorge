@@ -34,6 +34,13 @@ type FilesystemBackend struct {
 
 var _ Backend = (*FilesystemBackend)(nil)
 
+const (
+	defaultVersion = "0.0.0"
+	metadataFile   = "metadata.json"
+	readmeFile     = "README.md"
+	tarGzExt       = ".tar.gz"
+)
+
 func NewFilesystemBackend(path string) *FilesystemBackend {
 	return &FilesystemBackend{
 		Modules:    map[string]*gen.Module{},
@@ -43,15 +50,24 @@ func NewFilesystemBackend(path string) *FilesystemBackend {
 }
 
 func findLatestVersion(releases []gen.ReleaseAbbreviated) string {
-	latest := "0.0.0"
-	for i, r := range releases {
-		if i == 0 {
-			latest = r.Version
+	if len(releases) == 0 {
+		return defaultVersion
+	}
+
+	latest := releases[0].Version
+	for _, r := range releases[1:] {
+		vVersion, err := version.NewVersion(r.Version)
+		if err != nil {
+			log.Log.Warnf("invalid version: %s", r.Version)
 			continue
 		}
 
-		vVersion, _ := version.NewVersion(r.Version)
-		vlatest, _ := version.NewVersion(latest)
+		vlatest, err := version.NewVersion(latest)
+		if err != nil {
+			log.Log.Warnf("invalid version: %s", latest)
+			continue
+		}
+
 		if vVersion.Compare(vlatest) >= 1 {
 			latest = r.Version
 		}
@@ -412,16 +428,20 @@ func ReadReleaseMetadataFromFile(path string) (*model.ReleaseMetadata, string, e
 }
 
 func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, error) {
+	if len(data) == 0 {
+		return nil, "", errors.New("empty data provided")
+	}
+
 	var jsonData bytes.Buffer
 	var releaseMetadata model.ReleaseMetadata
 	readme := new(strings.Builder)
 
 	f := bytes.NewReader(data)
-
 	g, err := gzip.NewReader(f)
 	if err != nil {
-		return nil, readme.String(), err
+		return nil, "", fmt.Errorf("failed to create gzip reader: %v", err)
 	}
+	defer g.Close()
 
 	tarReader := tar.NewReader(g)
 
@@ -463,4 +483,16 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 		}
 	}
 	return &releaseMetadata, readme.String(), nil
+}
+
+func (b *FilesystemBackend) UpdateModule(module *gen.Module) error {
+	// Convert module to JSON
+	data, err := json.Marshal(module)
+	if err != nil {
+		return err
+	}
+
+	// Write to file
+	filename := filepath.Join(b.ModulesDir, module.Slug+".json")
+	return os.WriteFile(filename, data, 0644)
 }

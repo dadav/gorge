@@ -125,12 +125,11 @@ You can also enable the caching functionality to speed things up.`,
 			userService := v3.NewUserOperationsApi()
 
 			r := chi.NewRouter()
-
+			// 1. Recoverer should be first to catch panics in all other middleware
 			r.Use(middleware.Recoverer)
+			// 2. RealIP should be early to ensure all other middleware sees the correct IP
 			r.Use(middleware.RealIP)
-			r.Use(customMiddleware.RequireUserAgent)
-			x := customMiddleware.NewStatistics()
-			r.Use(customMiddleware.StatisticsMiddleware(x))
+			// 3. CORS should be early as it might reject requests before doing unnecessary work
 			r.Use(cors.Handler(cors.Options{
 				AllowedOrigins:   strings.Split(config.CORSOrigins, ","),
 				AllowedMethods:   []string{"GET", "POST", "DELETE", "PATCH"},
@@ -138,14 +137,10 @@ You can also enable the caching functionality to speed things up.`,
 				AllowCredentials: false,
 				MaxAge:           300,
 			}))
-			if !config.NoCache {
-				customKeyFunc := func(r *http.Request) uint64 {
-					token := r.Header.Get("Authorization")
-					return stampede.StringToHash(r.Method, strings.ToLower(token))
-				}
-				cachedMiddleware := stampede.HandlerWithKey(512, time.Duration(config.CacheMaxAge)*time.Second, customKeyFunc, strings.Split(config.CachePrefixes, ",")...)
-				r.Use(cachedMiddleware)
-			}
+			// 4. RequireUserAgent should be early to ensure all other middleware sees the correct user agent
+			r.Use(customMiddleware.RequireUserAgent)
+
+			x := customMiddleware.NewStatistics()
 
 			if config.UI {
 				r.Group(func(r chi.Router) {
@@ -160,6 +155,55 @@ You can also enable the caching functionality to speed things up.`,
 			}
 
 			r.Group(func(r chi.Router) {
+				if !config.NoCache {
+					log.Log.Debug("Setting up cache middleware")
+					customKeyFunc := func(r *http.Request) uint64 {
+						token := r.Header.Get("Authorization")
+						return stampede.StringToHash(r.Method, r.URL.Path, strings.ToLower(token))
+					}
+
+					cachedMiddleware := stampede.HandlerWithKey(
+						512,
+						time.Duration(config.CacheMaxAge)*time.Second,
+						customKeyFunc,
+					)
+					log.Log.Debugf("Cache middleware configured with prefixes: %s", config.CachePrefixes)
+
+					cachePrefixes := strings.Split(config.CachePrefixes, ",")
+
+					r.Use(func(next http.Handler) http.Handler {
+						return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							shouldCache := false
+							for _, prefix := range cachePrefixes {
+								if strings.HasPrefix(r.URL.Path, strings.TrimSpace(prefix)) {
+									shouldCache = true
+									break
+								}
+							}
+
+							if shouldCache {
+								wrapper := customMiddleware.NewResponseWrapper(w)
+								// Set default cache status before serving
+								// w.Header().Set("X-Cache", "MISS from gorge")
+
+								cachedMiddleware(next).ServeHTTP(wrapper, r)
+
+								// Only override if it was served from cache
+								// TODO: this is not working as expected
+								if wrapper.WasWritten() {
+									log.Log.Debugf("Serving cached response for path: %s", r.URL.Path)
+									w.Header().Set("X-Cache", "HIT from gorge")
+								} else {
+									log.Log.Debugf("Cache miss for path: %s", r.URL.Path)
+									w.Header().Set("X-Cache", "MISS from gorge")
+								}
+							} else {
+								next.ServeHTTP(w, r)
+							}
+						})
+					})
+				}
+
 				if config.FallbackProxyUrl != "" {
 					proxies := strings.Split(config.FallbackProxyUrl, ",")
 					slices.Reverse(proxies)
@@ -190,6 +234,10 @@ You can also enable the caching functionality to speed things up.`,
 						))
 					}
 				}
+
+				// StatisticsMiddleware should be last to ensure all other middleware is counted
+				r.Use(customMiddleware.StatisticsMiddleware(x))
+
 				apiRouter := openapi.NewRouter(
 					openapi.NewModuleOperationsAPIController(moduleService),
 					openapi.NewReleaseOperationsAPIController(releaseService),
@@ -212,34 +260,35 @@ You can also enable the caching functionality to speed things up.`,
 				w.Write([]byte(`{"message": "ok"}`))
 			})
 
-			ctx, restoreDefaultSignalHandling := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-			defer restoreDefaultSignalHandling()
-			g, gCtx := errgroup.WithContext(ctx)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			// if set, continuously check modules directory every ModulesScanSec seconds
-			// otherwise, check only at startup
+			// Create signal handling context
+			sigCtx, restoreDefaultSignalHandling := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+			defer restoreDefaultSignalHandling()
+			g, gCtx := errgroup.WithContext(sigCtx)
+
+			if err := backend.ConfiguredBackend.LoadModules(); err != nil {
+				log.Log.Fatal(fmt.Errorf("initial module load failed: %w", err))
+			}
+
 			if config.ModulesScanSec > 0 {
 				g.Go(func() error {
-					// Call LoadModules immediately on startup
-					if err := backend.ConfiguredBackend.LoadModules(); err != nil {
-						return err
-					}
+					ticker := time.NewTicker(time.Duration(config.ModulesScanSec) * time.Second)
+					defer ticker.Stop()
+
 					for {
 						select {
 						case <-gCtx.Done():
-							log.Log.Debugln("Canceling module scan goroutine")
 							return nil
-						case <-time.After(time.Duration(config.ModulesScanSec) * time.Second):
+						case <-ticker.C:
 							if err := backend.ConfiguredBackend.LoadModules(); err != nil {
-								return err
+								log.Log.Errorf("Failed to load modules: %v", err)
+								// Continue running instead of failing completely
 							}
 						}
 					}
 				})
-			} else {
-				if err := backend.ConfiguredBackend.LoadModules(); err != nil {
-					log.Log.Panic(err)
-				}
 			}
 
 			bindPort := fmt.Sprintf("%s:%d", config.Bind, config.Port)
@@ -253,20 +302,14 @@ You can also enable the caching functionality to speed things up.`,
 			wantTLS := config.TlsKeyPath != "" && config.TlsCertPath != ""
 
 			if wantTLS {
-				certificate, err := os.ReadFile(config.TlsCertPath)
+				cert, err := tls.LoadX509KeyPair(config.TlsCertPath, config.TlsKeyPath)
 				if err != nil {
-					log.Log.Fatal(err)
+					log.Log.Fatalf("Failed to load TLS certificates: %v", err)
 				}
-				key, err := os.ReadFile(config.TlsKeyPath)
-				if err != nil {
-					log.Log.Fatal(err)
-				}
-				cert, err := tls.X509KeyPair(certificate, key)
-				if err != nil {
-					log.Log.Fatal(err)
-				}
+
 				tlsConfig := &tls.Config{
 					Certificates: []tls.Certificate{cert},
+					MinVersion:   tls.VersionTLS12,
 				}
 				server.TLSConfig = tlsConfig
 			}
@@ -293,12 +336,14 @@ You can also enable the caching functionality to speed things up.`,
 
 			g.Go(func() error {
 				<-gCtx.Done()
-
-				log.Log.Debugln("Shutting down server (timeout: 5s)")
-				gracefullCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+				shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancelShutdown()
 
-				return server.Shutdown(gracefullCtx)
+				log.Log.Info("Shutting down server...")
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					return fmt.Errorf("server shutdown failed: %w", err)
+				}
+				return nil
 			})
 
 			if err := g.Wait(); err != nil {
@@ -334,18 +379,4 @@ func init() {
 	serveCmd.Flags().Int64Var(&config.CacheMaxAge, "cache-max-age", 86400, "max number of seconds responses should be cached")
 	serveCmd.Flags().BoolVar(&config.NoCache, "no-cache", false, "disables the caching functionality")
 	serveCmd.Flags().BoolVar(&config.ImportProxiedReleases, "import-proxied-releases", false, "add every proxied modules to local store")
-}
-
-func checkModules(sleepSeconds int) {
-	for {
-		err := backend.ConfiguredBackend.LoadModules()
-		if err != nil {
-			log.Log.Fatal(err)
-		}
-		if sleepSeconds > 0 {
-			time.Sleep(time.Duration(sleepSeconds) * time.Second)
-		} else {
-			break
-		}
-	}
 }

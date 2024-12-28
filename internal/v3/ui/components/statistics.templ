@@ -12,6 +12,8 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 		<p>ActiveConnections: { strconv.Itoa(stats.ActiveConnections) }</p>
 		<p>TotalConnections: { strconv.Itoa(stats.TotalConnections) }</p>
 		<p>TotalResponseTime: { stats.TotalResponseTime.String() }</p>
+		<p>TotalCacheHits: { strconv.Itoa(stats.TotalCacheHits) }</p>
+		<p>TotalCacheMisses: { strconv.Itoa(stats.TotalCacheMisses) }</p>
 		<table>
 			<thead>
 				<tr>
@@ -19,6 +21,7 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 					<th>Connections</th>
 					<th>Average ResponseTime</th>
 					<th>Total ResponseTime</th>
+					<th>Cache (Hits/Misses)</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -28,6 +31,11 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 						<td>{ strconv.Itoa(connections) }</td>
 						<td>{ (stats.ResponseTimePerEndpoint[path] / time.Duration(connections)).String() }</td>
 						<td>{ stats.ResponseTimePerEndpoint[path].String() }</td>
+						if stats.CacheHitsPerEndpoint[path] > 0 || stats.CacheMissesPerEndpoint[path] > 0 {
+							<td>{ strconv.Itoa(stats.CacheHitsPerEndpoint[path]) }/{ strconv.Itoa(stats.CacheMissesPerEndpoint[path]) }</td>
+						} else {
+							<td>N/A</td>
+						}
 					</tr>
 				}
 			</tbody>

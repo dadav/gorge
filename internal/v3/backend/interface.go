@@ -26,4 +26,7 @@ type Backend interface {
 
 	// DeleteReleaseBySlug deletes a release by slug
 	DeleteReleaseBySlug(slug string) error
+
+	// UpdateModule updates a module
+	UpdateModule(module *gen.Module) error
 }

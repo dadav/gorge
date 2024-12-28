@@ -49,6 +49,13 @@ func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
 func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			// Store original headers before any modifications
+			originalHeaders := make(http.Header)
+			for k, v := range w.Header() {
+				originalHeaders[k] = v
+			}
+
 			capturedResponseWriter := NewCapturedResponseWriter(w)
 			next.ServeHTTP(capturedResponseWriter, r)
 
@@ -57,6 +64,10 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 				u, err := url.Parse(upstreamHost)
 				if err != nil {
 					log.Log.Error(err)
+					// Restore original headers before sending captured response
+					for k, v := range originalHeaders {
+						w.Header()[k] = v
+					}
 					capturedResponseWriter.sendCapturedResponse()
 					return
 				}
@@ -75,6 +86,10 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 				// if some error occurs, return the original content
 				proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 					log.Log.Error(err)
+					// Restore original headers before sending captured response
+					for k, v := range originalHeaders {
+						w.Header()[k] = v
+					}
 					capturedResponseWriter.sendCapturedResponse()
 				}
 
@@ -83,6 +98,10 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 			}
 
 			// If the response status is not 404, serve the original response
+			// Restore original headers before sending captured response
+			for k, v := range originalHeaders {
+				w.Header()[k] = v
+			}
 			capturedResponseWriter.sendCapturedResponse()
 		})
 	}
