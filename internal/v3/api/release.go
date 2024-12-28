@@ -115,7 +115,6 @@ type GetFile400Response struct {
 
 // GetFile - Download module release
 func (s *ReleaseOperationsApi) GetFile(ctx context.Context, filename string) (gen.ImplResponse, error) {
-
 	if filename == "" {
 		return gen.Response(400, gen.GetFile400Response{
 			Message: "No filename provided",
@@ -368,7 +367,7 @@ func (s *ReleaseOperationsApi) GetReleases(ctx context.Context, limit int32, off
 	}
 
 	base.RawQuery = params.Encode()
-	currentInf := interface{}(base.String())
+	currentInf = interface{}(base.String())
 	params.Set("offset", "0")
 	firstInf := interface{}(base.String())
 
