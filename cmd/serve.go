@@ -226,11 +226,20 @@ You can also enable the caching functionality to speed things up.`,
 					proxies := strings.Split(config.FallbackProxyUrl, ",")
 					slices.Reverse(proxies)
 
+					proxyPrefixes := strings.Split(config.ProxyPrefixes, ",")
+
 					for _, proxy := range proxies {
 						r.Use(customMiddleware.ProxyFallback(
 							proxy,
-							func(status int) bool {
-								return status == http.StatusNotFound
+							func(r *http.Request, status int) bool {
+								shouldProxy := false
+								for _, prefix := range proxyPrefixes {
+									if strings.HasPrefix(r.URL.Path, strings.TrimSpace(prefix)) {
+										shouldProxy = true
+										break
+									}
+								}
+								return shouldProxy && status == http.StatusNotFound
 							},
 							func(r *http.Response) {
 								r.Header.Add("X-Proxied-To", proxy)
@@ -395,6 +404,7 @@ func init() {
 	serveCmd.Flags().BoolVar(&config.DropPrivileges, "drop-privileges", false, "drops privileges to the given user/group")
 	serveCmd.Flags().BoolVar(&config.UI, "ui", false, "enables the web ui")
 	serveCmd.Flags().StringVar(&config.CachePrefixes, "cache-prefixes", "/v3/files", "url prefixes to cache")
+	serveCmd.Flags().StringVar(&config.ProxyPrefixes, "proxy-prefixes", "/v3", "url prefixes to proxy")
 	serveCmd.Flags().StringVar(&config.JwtSecret, "jwt-secret", "changeme", "jwt secret")
 	serveCmd.Flags().StringVar(&config.JwtTokenPath, "jwt-token-path", "~/.gorge/token", "jwt token path")
 	serveCmd.Flags().StringVar(&config.TlsCertPath, "tls-cert", "", "path to tls cert file")

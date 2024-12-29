@@ -95,6 +95,7 @@ Flags:
       --dev                       enables dev mode
       --drop-privileges           drops privileges to the given user/group
       --fallback-proxy string     optional comma separated list of fallback upstream proxy urls
+      --proxy-prefixes string     url prefixes to proxy (default "/v3")
       --group string              give control to this group or gid (requires root)
   -h, --help                      help for serve
       --import-proxied-releases   add every proxied modules to local store
@@ -177,6 +178,8 @@ dev: false
 drop-privileges: false
 # List of comma separated upstream forge(s) to use when local requests return 404
 fallback-proxy:
+# The prefixes of requests to send to the proxies. Multiple entries must be separated by comma.
+proxy-prefixes: /v3
 # Import proxied modules into local backend.
 import-proxied-releases: false
 # Path to local modules.
@@ -213,6 +216,7 @@ GORGE_CORS="*"
 GORGE_DEV=false
 GORGE_DROP_PRIVILEGES=false
 GORGE_FALLBACK_PROXY=""
+GORGE_PROXY_PREFIXES=/v3
 GORGE_IMPORT_PROXIED_RELEASES=false
 GORGE_MODULESDIR=~/.gorge/modules
 GORGE_MODULES_SCAN_SEC=0

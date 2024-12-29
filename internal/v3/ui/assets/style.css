@@ -9,6 +9,10 @@
   max-width: 50%;
 }
 
+th[onclick] {
+  cursor: pointer;
+}
+
 /* https://codepen.io/irunatbullets/pen/MWwyVOw */
 .switch {
   display: inline-block;

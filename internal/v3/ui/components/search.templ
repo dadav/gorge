@@ -24,12 +24,12 @@ templ SearchView(query string, modules []*gen.Module) {
 			hx-swap="outerHTML"
 			hx-replace-url="true"
 		/>
-		<table class="table">
+		<table class="table" id="searchTable">
 			<thead>
 				<tr>
-					<th scope="col">Module</th>
-					<th scope="col">Author</th>
-					<th scope="col">Version</th>
+					<th scope="col" onclick="sortTable('searchTable', 0)">Module ↕</th>
+					<th scope="col" onclick="sortTable('searchTable', 1)">Author ↕</th>
+					<th scope="col" onclick="sortTable('searchTable', 2)">Version ↕</th>
 				</tr>
 			</thead>
 			<tbody id="search-results">
@@ -40,6 +40,7 @@ templ SearchView(query string, modules []*gen.Module) {
 				}
 			</tbody>
 		</table>
+		<script src="/assets/js/table-sort.js"></script>
 	</div>
 }
 
