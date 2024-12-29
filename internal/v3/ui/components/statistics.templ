@@ -2,19 +2,9 @@ package components
 
 import (
 	customMiddleware "github.com/dadav/gorge/internal/middleware"
-	"sort"
 	"strconv"
 	"time"
 )
-
-func sortedKeys(stats *customMiddleware.Statistics) []string {
-	keys := []string{}
-	for k := range stats.ConnectionsPerEndpoint {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
 
 templ StatisticsView(stats *customMiddleware.Statistics) {
 	<div>
@@ -37,7 +27,7 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 				</tr>
 			</thead>
 			<tbody>
-				for _, path := range sortedKeys(stats) {
+				for _, path := range getSortedKeys(stats) {
 					<tr>
 						<td>{ path }</td>
 						<td>{ strconv.Itoa(stats.ConnectionsPerEndpoint[path]) }</td>

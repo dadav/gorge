@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
+// FilesystemBackend implements the Backend interface for local filesystem storage
 type FilesystemBackend struct {
 	muModules  sync.RWMutex
 	Modules    map[string]*gen.Module
@@ -49,6 +50,7 @@ func NewFilesystemBackend(path string) *FilesystemBackend {
 	}
 }
 
+// findLatestVersion compares version strings and returns the most recent one
 func findLatestVersion(releases []gen.ReleaseAbbreviated) string {
 	if len(releases) == 0 {
 		return defaultVersion
@@ -100,6 +102,7 @@ func (s *FilesystemBackend) GetAllReleases() ([]*gen.Release, error) {
 	return result, nil
 }
 
+// MetadataToRelease converts release metadata into a Release object
 func MetadataToRelease(metadata *model.ReleaseMetadata) *gen.Release {
 	var releaseMetadataInterface map[string]interface{}
 	inrec, _ := json.Marshal(metadata)
@@ -345,7 +348,7 @@ func (s *FilesystemBackend) DeleteReleaseBySlug(slug string) error {
 }
 
 func (s *FilesystemBackend) LoadModules() error {
-	// don't overwrite data we already have on modules and releases
+	// Initialize maps if they haven't been created yet
 	if s.Modules == nil {
 		s.Modules = make(map[string]*gen.Module)
 	}
@@ -353,21 +356,26 @@ func (s *FilesystemBackend) LoadModules() error {
 		s.Releases = make(map[string][]*gen.Release)
 	}
 
+	// Walk through all files in the modules directory recursively
 	err := filepath.Walk(s.ModulesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
+		// Skip directories and non-tar.gz files
 		if info.IsDir() || !strings.HasSuffix(info.Name(), ".tar.gz") {
 			return nil
 		}
 
 		log.Log.Debugf("Reading %s\n", path)
+		// Read the release archive file
 		releaseBytes, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 
+		// Process the release archive and add it to the backend
+		// This will update both s.Modules and s.Releases maps
 		_, err = s.AddRelease(releaseBytes)
 		return err
 	})
@@ -377,61 +385,14 @@ func (s *FilesystemBackend) LoadModules() error {
 	return nil
 }
 
-func ReadReleaseMetadataFromFile(path string) (*model.ReleaseMetadata, string, error) {
-	var jsonData bytes.Buffer
-	var releaseMetadata model.ReleaseMetadata
-	readme := new(strings.Builder)
-
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, readme.String(), err
-	}
-	defer f.Close()
-
-	g, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, readme.String(), err
-	}
-
-	tarReader := tar.NewReader(g)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return nil, readme.String(), err
-		}
-
-		if header.Typeflag != tar.TypeReg {
-			continue
-		}
-
-		switch filepath.Base(header.Name) {
-		case "metadata.json":
-			_, err = io.Copy(&jsonData, tarReader)
-			if err != nil {
-				return nil, readme.String(), err
-			}
-
-			if err := json.Unmarshal(jsonData.Bytes(), &releaseMetadata); err != nil {
-				return nil, readme.String(), err
-			}
-
-		case "README.md":
-			_, err = io.Copy(readme, tarReader)
-			if err != nil {
-				return nil, readme.String(), err
-			}
-		default:
-			continue
-		}
-	}
-	return &releaseMetadata, readme.String(), nil
-}
-
+// ReadReleaseMetadataFromBytes extracts metadata and README from a gzipped tar archive
+// Parameters:
+//   - data: byte slice containing the gzipped tar archive
+//
+// Returns:
+//   - *model.ReleaseMetadata: parsed metadata from metadata.json
+//   - string: contents of README.md
+//   - error: any errors encountered during processing
 func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, error) {
 	if len(data) == 0 {
 		return nil, "", errors.New("empty data provided")
@@ -441,6 +402,7 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 	var releaseMetadata model.ReleaseMetadata
 	readme := new(strings.Builder)
 
+	// Create readers to process the gzipped tar data
 	f := bytes.NewReader(data)
 	g, err := gzip.NewReader(f)
 	if err != nil {
@@ -450,6 +412,7 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 
 	tarReader := tar.NewReader(g)
 
+	// Iterate through all files in the archive
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -460,12 +423,15 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 			return nil, readme.String(), err
 		}
 
+		// Skip if not a regular file
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
 
+		// Process only metadata.json and README.md files
 		switch filepath.Base(header.Name) {
 		case "metadata.json":
+			// Read and parse the metadata file
 			_, err = io.Copy(&jsonData, tarReader)
 			if err != nil {
 				return nil, readme.String(), err
@@ -475,10 +441,12 @@ func ReadReleaseMetadataFromBytes(data []byte) (*model.ReleaseMetadata, string, 
 				return nil, readme.String(), err
 			}
 
+			// Validate the module name
 			if !utils.CheckModuleSlug(releaseMetadata.Name) {
 				return nil, readme.String(), errors.New("invalid module name")
 			}
 		case "README.md":
+			// Read the README contents
 			_, err = io.Copy(readme, tarReader)
 			if err != nil {
 				return nil, readme.String(), err

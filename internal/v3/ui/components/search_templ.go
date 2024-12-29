@@ -49,7 +49,7 @@ func SearchView(query string, modules []*gen.Module) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(modules) > 0 {
-			for _, module := range modules {
+			for _, module := range sortModules(modules) {
 				templ_7745c5c3_Err = ModuleToTableRow(module).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

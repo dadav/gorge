@@ -34,7 +34,7 @@ templ SearchView(query string, modules []*gen.Module) {
 			</thead>
 			<tbody id="search-results">
 				if len(modules) > 0 {
-					for _, module := range modules {
+					for _, module := range sortModules(modules) {
 						@ModuleToTableRow(module)
 					}
 				}
