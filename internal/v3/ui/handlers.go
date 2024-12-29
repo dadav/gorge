@@ -13,35 +13,42 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func handleError(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusInternalServerError)
+	log.Log.Error(err)
+}
+
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	modules, err := backend.ConfiguredBackend.GetAllModules()
 	if err != nil {
-		w.WriteHeader(500)
-		log.Log.Error(err)
+		handleError(w, err)
 		return
 	}
 	templ.Handler(components.Page("Gorge", components.SearchView("", modules))).ServeHTTP(w, r)
 }
 
 func SearchHandler(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("query")
+	query := strings.ToLower(r.URL.Query().Get("query"))
 	modules, err := backend.ConfiguredBackend.GetAllModules()
 	if err != nil {
-		w.WriteHeader(500)
-		log.Log.Error(err)
+		handleError(w, err)
 		return
 	}
 
-	filtered := []*gen.Module{}
+	filtered := make([]*gen.Module, 0, len(modules))
+	queryTerms := strings.Fields(query)
 
 	for _, module := range modules {
-		ok := true
-		for _, q := range strings.Split(query, " ") {
-			if !strings.Contains(module.Name, q) && !strings.Contains(module.Owner.Username, q) && !strings.Contains(module.CurrentRelease.Version, q) {
-				ok = false
+		matches := true
+		for _, term := range queryTerms {
+			if !strings.Contains(strings.ToLower(module.Name), term) &&
+				!strings.Contains(strings.ToLower(module.Owner.Username), term) &&
+				!strings.Contains(strings.ToLower(module.CurrentRelease.Version), term) {
+				matches = false
+				break
 			}
 		}
-		if ok {
+		if matches {
 			filtered = append(filtered, module)
 		}
 	}
@@ -53,20 +60,16 @@ func AuthorHandler(w http.ResponseWriter, r *http.Request) {
 	authorSlug := chi.URLParam(r, "author")
 	modules, err := backend.ConfiguredBackend.GetAllModules()
 	if err != nil {
-		w.WriteHeader(500)
-		log.Log.Error(err)
+		handleError(w, err)
 		return
 	}
 
-	filtered := []*gen.Module{}
-
+	authorModules := make(map[string][]*gen.Module)
 	for _, module := range modules {
-		if module.Owner.Slug == authorSlug {
-			filtered = append(filtered, module)
-		}
+		authorModules[module.Owner.Slug] = append(authorModules[module.Owner.Slug], module)
 	}
 
-	if len(filtered) > 0 {
+	if filtered, exists := authorModules[authorSlug]; exists && len(filtered) > 0 {
 		templ.Handler(components.Page(authorSlug, components.AuthorView(filtered))).ServeHTTP(w, r)
 		return
 	}
@@ -79,17 +82,14 @@ func ReleaseHandler(w http.ResponseWriter, r *http.Request) {
 	version := chi.URLParam(r, "version")
 	releases, err := backend.ConfiguredBackend.GetAllReleases()
 	if err != nil {
-		w.WriteHeader(500)
-		log.Log.Error(err)
+		handleError(w, err)
 		return
 	}
 
 	for _, release := range releases {
 		if release.Module.Slug == moduleSlug && release.Version == version {
-			if release.Version == version {
-				templ.Handler(components.Page(release.Slug, components.ReleaseView(release))).ServeHTTP(w, r)
-				return
-			}
+			templ.Handler(components.Page(release.Slug, components.ReleaseView(release))).ServeHTTP(w, r)
+			return
 		}
 	}
 

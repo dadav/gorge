@@ -15,24 +15,24 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 		<p>TotalResponseTime: { stats.TotalResponseTime.String() }</p>
 		<p>TotalCacheHits: { strconv.Itoa(stats.TotalCacheHits) }</p>
 		<p>TotalCacheMisses: { strconv.Itoa(stats.TotalCacheMisses) }</p>
-		<table>
+		<table id="statsTable">
 			<thead>
 				<tr>
-					<th>Path</th>
-					<th>Connections</th>
-					<th>Proxied Connections</th>
-					<th>Average ResponseTime</th>
-					<th>Total ResponseTime</th>
-					<th>Cache (Hits/Misses)</th>
+					<th onclick="sortTable('statsTable', 0)" style="cursor: pointer;">Path ↕</th>
+					<th onclick="sortTable('statsTable', 1)" style="cursor: pointer;">Connections ↕</th>
+					<th onclick="sortTable('statsTable', 2)" style="cursor: pointer;">Proxied Connections ↕</th>
+					<th onclick="sortTable('statsTable', 3)" style="cursor: pointer;">Average ResponseTime ↕</th>
+					<th onclick="sortTable('statsTable', 4)" style="cursor: pointer;">Total ResponseTime ↕</th>
+					<th onclick="sortTable('statsTable', 5)" style="cursor: pointer;">Cache (Hits/Misses) ↕</th>
 				</tr>
 			</thead>
 			<tbody>
-				for path, connections := range stats.ConnectionsPerEndpoint {
+				for _, path := range getSortedKeys(stats) {
 					<tr>
 						<td>{ path }</td>
-						<td>{ strconv.Itoa(connections) }</td>
+						<td>{ strconv.Itoa(stats.ConnectionsPerEndpoint[path]) }</td>
 						<td>{ strconv.Itoa(stats.ProxiedConnectionsPerEndpoint[path]) }</td>
-						<td>{ (stats.ResponseTimePerEndpoint[path] / time.Duration(connections)).String() }</td>
+						<td>{ (stats.ResponseTimePerEndpoint[path] / time.Duration(stats.ConnectionsPerEndpoint[path])).String() }</td>
 						<td>{ stats.ResponseTimePerEndpoint[path].String() }</td>
 						if stats.CacheHitsPerEndpoint[path] > 0 || stats.CacheMissesPerEndpoint[path] > 0 {
 							<td>{ strconv.Itoa(stats.CacheHitsPerEndpoint[path]) }/{ strconv.Itoa(stats.CacheMissesPerEndpoint[path]) }</td>
@@ -43,5 +43,6 @@ templ StatisticsView(stats *customMiddleware.Statistics) {
 				}
 			</tbody>
 		</table>
+		<script src="/assets/js/table-sort.js"></script>
 	</div>
 }

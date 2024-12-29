@@ -44,11 +44,11 @@ func AuthorView(modules []*gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><h4>Modules</h4><table><thead><tr><th scope=\"col\">Module</th><th scope=\"col\">Version</th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><h4>Modules</h4><table id=\"modulesTable\"><thead><tr><th scope=\"col\" onclick=\"sortTable(&#39;modulesTable&#39;, 0)\">Module ↕</th><th scope=\"col\" onclick=\"sortTable(&#39;modulesTable&#39;, 1)\">Version ↕</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, module := range modules {
+		for _, module := range sortModules(modules) {
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<tr><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -98,7 +98,7 @@ func AuthorView(modules []*gen.Module) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table><script src=\"/assets/js/table-sort.js\"></script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

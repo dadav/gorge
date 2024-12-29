@@ -23,6 +23,8 @@ dev: false
 drop-privileges: false
 # List of comma separated upstream forge(s) to use when local requests return 404
 fallback-proxy:
+# The prefixes of requests to send to the proxies. Multiple entries must be separated by comma.
+proxy-prefixes: /v3
 # Import proxied modules into local backend.
 import-proxied-releases: false
 # Path to local modules.

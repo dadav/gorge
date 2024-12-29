@@ -110,11 +110,11 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><table><thead><tr><th>Path</th><th>Connections</th><th>Proxied Connections</th><th>Average ResponseTime</th><th>Total ResponseTime</th><th>Cache (Hits/Misses)</th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p><table id=\"statsTable\"><thead><tr><th onclick=\"sortTable(&#39;statsTable&#39;, 0)\" style=\"cursor: pointer;\">Path ↕</th><th onclick=\"sortTable(&#39;statsTable&#39;, 1)\" style=\"cursor: pointer;\">Connections ↕</th><th onclick=\"sortTable(&#39;statsTable&#39;, 2)\" style=\"cursor: pointer;\">Proxied Connections ↕</th><th onclick=\"sortTable(&#39;statsTable&#39;, 3)\" style=\"cursor: pointer;\">Average ResponseTime ↕</th><th onclick=\"sortTable(&#39;statsTable&#39;, 4)\" style=\"cursor: pointer;\">Total ResponseTime ↕</th><th onclick=\"sortTable(&#39;statsTable&#39;, 5)\" style=\"cursor: pointer;\">Cache (Hits/Misses) ↕</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for path, connections := range stats.ConnectionsPerEndpoint {
+		for _, path := range getSortedKeys(stats) {
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<tr><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -133,9 +133,9 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(connections))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(stats.ConnectionsPerEndpoint[path]))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 33, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 33, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -159,9 +159,9 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs((stats.ResponseTimePerEndpoint[path] / time.Duration(connections)).String())
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs((stats.ResponseTimePerEndpoint[path] / time.Duration(stats.ConnectionsPerEndpoint[path])).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 35, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/v3/ui/components/statistics.templ`, Line: 35, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -226,7 +226,7 @@ func StatisticsView(stats *customMiddleware.Statistics) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</tbody></table><script src=\"/assets/js/table-sort.js\"></script></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -46,7 +46,7 @@ func NewSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
 	}
 }
 
-func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
+func ProxyFallback(upstreamHost string, forwardToProxy func(*http.Request, int) bool, proxiedResponseCb func(*http.Response)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Store original headers before any modifications
@@ -58,7 +58,7 @@ func ProxyFallback(upstreamHost string, forwardToProxy func(int) bool, proxiedRe
 			capturedResponseWriter := NewCapturedResponseWriter(w)
 			next.ServeHTTP(capturedResponseWriter, r)
 
-			if forwardToProxy(capturedResponseWriter.status) {
+			if forwardToProxy(r, capturedResponseWriter.status) {
 				log.Log.Infof("Forwarding request to %s\n", upstreamHost)
 				u, err := url.Parse(upstreamHost)
 				if err != nil {
