@@ -44,7 +44,7 @@ func AuthorView(modules []*gen.Module) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><h4>Modules</h4><table id=\"modulesTable\"><thead><tr><th scope=\"col\" onclick=\"sortTable(0, &#39;modulesTable&#39;)\">Module</th><th scope=\"col\" onclick=\"sortTable(1, &#39;modulesTable&#39;)\">Version</th></tr></thead> <tbody>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</h3><h4>Modules</h4><table id=\"modulesTable\"><thead><tr><th scope=\"col\" onclick=\"sortTable(&#39;modulesTable&#39;, 0)\">Module</th><th scope=\"col\" onclick=\"sortTable(&#39;modulesTable&#39;, 1)\">Version</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
