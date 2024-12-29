@@ -13,6 +13,8 @@ cache-max-age: 86400
 bind: 127.0.0.1
 # The prefixes of requests to cache responses from. Multiple entries must be separated by comma.
 cache-prefixes: /v3/files
+# Cache responses by the full request URI (incl. query fragments) instead of only the request path
+cache-by-full-request-uri: false
 # Value of the `Access-Control-Allow-Origin` header.
 cors: "*"
 # Enables the dev mode.
